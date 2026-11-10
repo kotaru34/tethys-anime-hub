@@ -54,3 +54,8 @@ def test_candidate_safety_and_fuzzy(monkeypatch):
     mid, status, score, _ = choose_candidate('Mahou Shoujo Lyrical Nanoha', 2004, FakeAniList())
     assert mid == 123
     assert status == 'fuzzy'
+
+def test_subtitle_languages_are_not_limited_to_a_favorite_list():
+    assert subtitle_hint('02.spa.ass') == ('spa', 2)
+    assert subtitle_hint('04.ita.srt') == ('ita', 4)
+    assert subtitle_hint('08.zzq.ass')[0] is None

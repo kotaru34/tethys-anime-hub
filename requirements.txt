@@ -8,3 +8,4 @@ psycopg[binary]>=3.2,<4
 pydantic-settings>=2.7,<3
 itsdangerous>=2.2,<3
 alembic>=1.14,<2
+pycountry>=24,<26

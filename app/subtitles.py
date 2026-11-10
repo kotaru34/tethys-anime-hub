@@ -3,16 +3,23 @@ import os
 import re
 from pathlib import Path
 from app.db import Sidecar, utcnow
+import pycountry
 
 EXTENSIONS = {'.ass', '.ssa', '.srt', '.vtt', '.sub', '.idx', '.sup'}
-LANGS = {'ukr', 'uk', 'eng', 'en', 'jpn', 'ja', 'rus', 'ru', 'deu', 'ger', 'de', 'fra', 'fr'}
+# Recognize the ISO 639 codes exposed by pycountry, not a favorite-language list.
+# This is only a filename hint: unknown language is preserved, not guessed.
+LANGS = frozenset(
+    str(code).lower() for language in pycountry.languages
+    for name in ('alpha_2', 'alpha_3', 'bibliographic', 'terminology')
+    if (code := getattr(language, name, None))
+)
 EP_PATTERN = re.compile(r'(?:^|[\s._\[(-])(?:e|ep|episode)?\s*0?(\d{1,3})(?:v\d)?(?:[\s._\])\-]|$)', re.I)
 
 
 def subtitle_hint(filename: str):
     name = Path(filename).stem.casefold()
-    tokens = set(re.split(r'[^a-z0-9]+', name))
-    lang = next((v for v in sorted(LANGS) if v in tokens), None)
+    tokens = [v for v in re.split(r'[^a-z0-9]+', name) if v]
+    lang = next((v for v in reversed(tokens) if v in LANGS), None)
     match = EP_PATTERN.search(name)
     number = int(match.group(1)) if match else None
     return lang, number
