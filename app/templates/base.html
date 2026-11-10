@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Kotaru Anime{% endblock %}</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><header class="top"><a class="brand" href="/">KOTARU<span> / Anime</span></a>
+<nav><a href="/">Каталог</a><a href="/sidecars">Субтитри</a>
+{% if request.session.get('authenticated') %}<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="navbtn" type="submit">Вийти</button></form>{% endif %}
+</nav></header><main>{% block content %}{% endblock %}</main><footer>Особистий каталог · Shoko + Jellyfin + AniList · Оригінальні файли не змінюються</footer></body></html>

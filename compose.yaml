@@ -1,0 +1,90 @@
+name: kotaru-anime
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?}
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [internal]
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    env_file: .env
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [internal]
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${BIND_IP:-0.0.0.0}:3080:3080"
+    environment:
+      STATE_DIR: /state
+    volumes:
+      - appstate:/state
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    networks: [internal, public]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:3080/healthz',timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      STATE_DIR: /state
+    volumes:
+      - appstate:/state
+      - type: bind
+        source: ${ANIME_PATH:?}
+        target: /Anime
+        read_only: true
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    networks: [internal, public]
+
+  shoko:
+    image: ${SHOKO_IMAGE:-ghcr.io/shokoanime/server:latest}
+    shm_size: 256m
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - "${BIND_IP:-0.0.0.0}:8111:8111"
+    volumes:
+      - ./state/shoko:/home/shoko/.shoko
+      - type: bind
+        source: ${ANIME_PATH:?}
+        target: /Anime
+        read_only: true
+    networks: [public]
+
+networks:
+  internal:
+    internal: true
+  public:
+
+volumes:
+  pgdata:
+  appstate:

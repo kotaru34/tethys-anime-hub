@@ -1,0 +1,24 @@
+{% extends 'base.html' %}{% block title %}Каталог – Kotaru Anime{% endblock %}
+{% block content %}
+<section class="hero"><div><p class="eyebrow">Приватна колекція</p><h1>Аніме-бібліотека</h1>
+<p class="muted">{{ total }} записів у поточній вибірці · остання синхронізація: {{ last_sync[:19].replace('T',' ') if last_sync != 'never' else 'ще не виконувалася' }}</p></div>
+<form method="post" action="/sync"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="outline">Оновити бібліотеку</button></form></section>
+{% if last_error %}<p class="error">Помилка індексації: {{ last_error }}</p>{% endif %}
+<form class="searchbar" method="get" action="/"><input name="q" placeholder="Пошук за назвою…" value="{{ q }}">
+<select name="filter"><option value="available" {% if filter=='available' %}selected{% endif %}>На диску</option>
+<option value="all" {% if filter=='all' %}selected{% endif %}>Усі, включно з видаленими</option>
+<option value="review" {% if filter=='review' %}selected{% endif %}>Потрібна ідентифікація</option>
+<option value="rated" {% if filter=='rated' %}selected{% endif %}>З оцінкою</option></select>
+<button>Знайти</button></form>
+{% if not rows %}<div class="empty">Поки нічого не знайдено. Перевір Shoko, Jellyfin і синхронізацію каталогу.</div>{% endif %}
+<div class="anime-grid">{% for anime in rows %}<a class="anime-card" href="/anime/{{ anime.id }}">
+<div class="poster"><img src="/poster/{{ anime.id }}" loading="lazy" alt="" onerror="this.style.display='none'">
+{% if anime.personal_rating is not none %}<span class="rating">★ {{ '%.1f'|format(anime.personal_rating) }}</span>{% endif %}</div>
+<div class="card-body"><h2>{{ anime.title }}</h2>
+<p class="meta">{{ anime.year or 'Рік невідомий' }} · {{ anime.file_count }}/{{ anime.total_episodes if anime.total_episodes is not none else '?' }} серій</p>
+{% if anime.match_status in ['needs_review', 'unmatched'] %}<span class="tag warning">Перевірити ID</span>{% endif %}
+{% if not anime.available %}<span class="tag">Не на диску</span>{% endif %}
+</div></a>{% endfor %}</div>
+<div class="pagination">{% if page_no>1 %}<a href="/?q={{ q|urlencode }}&filter={{ filter }}&page_no={{ page_no-1 }}">← Назад</a>{% endif %}
+<span>Сторінка {{ page_no }}</span>{% if has_next %}<a href="/?q={{ q|urlencode }}&filter={{ filter }}&page_no={{ page_no+1 }}">Далі →</a>{% endif %}</div>
+{% endblock %}
