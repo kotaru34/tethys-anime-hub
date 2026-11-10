@@ -1,7 +1,34 @@
 <!doctype html>
-<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Kotaru Anime{% endblock %}</title><link rel="stylesheet" href="/static/style.css"></head>
-<body><header class="top"><a class="brand" href="/">KOTARU<span> / Anime</span></a>
-<nav><a href="/">Каталог</a><a href="/sidecars">Субтитри</a>
-{% if request.session.get('authenticated') %}<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="navbtn" type="submit">Вийти</button></form>{% endif %}
-</nav></header><main>{% block content %}{% endblock %}</main><footer>Особистий каталог · Shoko + Jellyfin + AniList · Оригінальні файли не змінюються</footer></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#000000">
+  <title>{% block title %}Tethys Anime Hub{% endblock %}</title>
+  <script>(function(){try{var theme=localStorage.getItem('tethys-theme')||'dark';document.documentElement.dataset.theme=theme==='system'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):theme;}catch(e){document.documentElement.dataset.theme='dark';}})();</script>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Tethys Anime Hub home">TETHYS<span> / Anime Hub</span></a>
+    <nav aria-label="Main navigation">
+      <a href="/">Library</a>
+      {% if request.session.get('authenticated') %}<a href="/sidecars">Subtitle inventory</a>{% endif %}
+      <label class="theme-picker">Theme
+        <select id="theme-select" aria-label="Color theme">
+          <option value="system">System</option>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="amoled">AMOLED</option>
+        </select>
+      </label>
+      {% if request.session.get('authenticated') %}
+      <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="navbtn" type="submit">Sign out</button></form>
+      {% endif %}
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>Personal anime catalog · Shoko + Jellyfin + AniList · Source files stay untouched</footer>
+</body>
+</html>

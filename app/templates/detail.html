@@ -1,42 +1,43 @@
-{% extends 'base.html' %}{% block title %}{{ anime.title }} – Kotaru Anime{% endblock %}
+{% extends 'base.html' %}{% block title %}{{ anime.title }} – Tethys Anime Hub{% endblock %}
 {% block content %}
-<a class="back" href="/">← Повернутися до каталогу</a>
-<section class="detail-head"><div class="detail-poster"><img src="/poster/{{ anime.id }}" alt="Постер" onerror="this.style.display='none'"></div>
-<div class="detail-info"><p class="eyebrow">{{ anime.match_status }}{% if not anime.available %} · не на диску{% endif %}</p><h1>{{ anime.title }}</h1>
-{% if anime.title != anime.source_title %}<p class="muted">Реліз: {{ anime.source_title }}</p>{% endif %}
-<div class="facts"><span>{{ anime.year or 'Рік невідомий' }}</span>
-<span>Серії {{ anime.file_count }}/{{ anime.total_episodes if anime.total_episodes is not none else '?' }}</span>
-<span>{{ target_language|upper }} аудіо: {{ anime.dubbed_count }}/{{ anime.total_episodes if anime.total_episodes is not none else '?' }}</span>
+<a class="back" href="/">← Back to library</a>
+<section class="detail-head"><div class="detail-poster"><img src="/poster/{{ anime.id }}" alt="Cover art" onerror="this.style.display='none'"></div>
+<div class="detail-info"><p class="eyebrow">{{ anime.match_status }}{% if not anime.available %} · not downloaded{% endif %}</p><h1>{{ anime.title }}</h1>
+{% if anime.title != anime.source_title %}<p class="muted">Release: {{ anime.source_title }}</p>{% endif %}
+<div class="facts"><span>{{ anime.year or 'Year unknown' }}</span>
+<span>Episodes {{ anime.file_count }}/{{ anime.total_episodes if anime.total_episodes is not none else '?' }}</span>
+
 {% if anime.anilist_id %}<a href="https://anilist.co/anime/{{ anime.anilist_id }}" target="_blank" rel="noopener noreferrer">AniList #{{ anime.anilist_id }}</a>{% endif %}
 {% if anime.anidb_id %}<a href="https://anidb.net/anime/{{ anime.anidb_id }}" target="_blank" rel="noopener noreferrer">AniDB #{{ anime.anidb_id }}</a>{% endif %}</div>
-<p class="description">{{ (anime.overview or 'Опис наразі відсутній.')|striptags }}</p>
-<dl class="specs"><dt>Мови аудіо</dt><dd>{{ anime.audio_languages|join(', ') or 'Не визначено' }}</dd>
-<dt>Мови субтитрів</dt><dd>{{ anime.subtitle_languages|join(', ') or 'Не визначено' }}</dd>
-<dt>Реліз-групи</dt><dd>{{ anime.release_groups|join(', ') or 'Не визначено' }}</dd>
-<dt>Студії</dt><dd>{{ anime.studios|join(', ') or 'Не визначено' }}</dd>
-<dt>Дата виходу</dt><dd>{{ anime.premiere or 'Невідомо' }}</dd></dl>
-{% if jellyfin_public_url and anime.available %}<a class="btn" href="{{ jellyfin_public_url }}/web/#/details?id={{ anime.id }}" target="_blank" rel="noopener noreferrer">Відкрити в Jellyfin ↗</a>{% endif %}
+<p class="description">{{ (anime.overview or 'No description available yet.')|striptags }}</p>
+<dl class="specs"><dt>Audio languages</dt><dd>{{ anime.audio_languages|join(', ') or 'Unknown' }}</dd>
+{% if audio_counts %}<dt>Episodes by audio language</dt><dd>{% for language, count in audio_counts.items() %}{{ language|upper }} {{ count }}/{{ anime.total_episodes if anime.total_episodes is not none else '?' }}{% if not loop.last %} · {% endif %}{% endfor %}</dd>{% endif %}
+<dt>Subtitle languages</dt><dd>{{ anime.subtitle_languages|join(', ') or 'Unknown' }}</dd>
+<dt>Release groups</dt><dd>{{ anime.release_groups|join(', ') or 'Unknown' }}</dd>
+<dt>Studios</dt><dd>{{ anime.studios|join(', ') or 'Unknown' }}</dd>
+<dt>Premiere date</dt><dd>{{ anime.premiere or 'Unknown' }}</dd></dl>
+{% if jellyfin_public_url and anime.available %}<a class="btn" href="{{ jellyfin_public_url }}/web/#/details?id={{ anime.id }}" target="_blank" rel="noopener noreferrer">Open in Jellyfin ↗</a>{% endif %}
 </div></section>
-<div class="columns"><section class="panel"><h2>Моя оцінка та відгук</h2>
+<div class="columns"><section class="panel"><h2>My rating and review</h2>
 <form action="/anime/{{ anime.id }}/review" method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
-<label>Оцінка (0–10, можна залишити порожнім)<input type="number" min="0" max="10" step="0.1" name="rating" value="{{ anime.personal_rating if anime.personal_rating is not none else '' }}"></label>
-<label>Особистий відгук<textarea name="review" rows="6" placeholder="Враження від аніме…">{{ anime.personal_review or '' }}</textarea></label>
-<button type="submit">Зберегти</button></form></section>
-<section class="panel"><h2>Відповідність метаданих</h2>
-<p class="muted">Статус: <strong>{{ anime.match_status }}</strong> · збіг: {{ anime.match_confidence if anime.match_confidence is not none else '—' }}</p>
+<label>Rating (0–10; optional)<input type="number" min="0" max="10" step="0.1" name="rating" value="{{ anime.personal_rating if anime.personal_rating is not none else '' }}"></label>
+<label>Personal review<textarea name="review" rows="6" placeholder="What did you think of this anime?">{{ anime.personal_review or '' }}</textarea></label>
+<button type="submit">Save</button></form></section>
+<section class="panel"><h2>Metadata matching</h2>
+<p class="muted">Status: <strong>{{ anime.match_status }}</strong> · confidence: {{ anime.match_confidence if anime.match_confidence is not none else '—' }}</p>
 <form action="/anime/{{ anime.id }}/match" method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
-<label>Вказати правильний AniList ID вручну<input type="number" min="1" step="1" name="anilist_id" value="{{ anime.anilist_id or '' }}" required></label>
-<button class="outline" type="submit">Застосувати ID</button></form>
-{% if anime.match_candidates %}<h3>Кандидати</h3><ul class="candidate-list">{% for c in anime.match_candidates[:8] %}
+<label>Set the correct AniList ID manually<input type="number" min="1" step="1" name="anilist_id" value="{{ anime.anilist_id or '' }}" required></label>
+<button class="outline" type="submit">Apply ID</button></form>
+{% if anime.match_candidates %}<h3>Candidates</h3><ul class="candidate-list">{% for c in anime.match_candidates[:8] %}
 <li>{{ c.title }} ({{ c.year or '?' }}) – <strong>{{ c.id }}</strong> · {{ c.score }}</li>{% endfor %}</ul>{% endif %}</section></div>
-<section class="panel"><h2>Епізоди на диску ({{ eps|length }})</h2>
+<section class="panel"><h2>Local episodes ({{ eps|length }})</h2>
 {% if eps %}<div class="episode-list">{% for ep in eps %}<div><strong>{% if ep.season is not none %}S{{ '%02d'|format(ep.season) }}{% endif %}{% if ep.number is not none %}E{{ '%02d'|format(ep.number) }}{% endif %}</strong>
-<span>{{ ep.name }}</span><small>{{ ep.audio_languages|join(', ') or 'аудіо ?' }} · SUB: {{ ep.subtitle_languages|join(', ') or '?' }}</small></div>{% endfor %}</div>
-{% else %}<p class="muted">Jellyfin ще не повідомив про епізоди.</p>{% endif %}</section>
-<section class="panel"><h2>Зв'язки з іншими аніме</h2>
-{% if not related %}<p class="muted">Зв'язків не знайдено або AniList ID ще невідомий.</p>{% endif %}
+<span>{{ ep.name }}</span><small>{{ ep.audio_languages|join(', ') or 'audio unknown' }} · SUB: {{ ep.subtitle_languages|join(', ') or '?' }}</small></div>{% endfor %}</div>
+{% else %}<p class="muted">Jellyfin has not reported any episodes yet.</p>{% endif %}</section>
+<section class="panel"><h2>Related anime</h2>
+{% if not related %}<p class="muted">No relations found, or AniList ID is still unknown.</p>{% endif %}
 <div class="relation-grid">{% for rel, local in related %}<div class="relation">
 {% if rel.cover_url %}<img src="{{ rel.cover_url }}" loading="lazy" alt="">{% endif %}
 <div><small>{{ rel.kind or 'RELATED' }} · {{ rel.format or '?' }}</small><h3>{{ rel.title }}</h3>
-<p>{% if local %}<a href="/anime/{{ local.id }}">На диску: {{ local.file_count }} серій</a>{% else %}<span class="muted">Не завантажено</span>{% endif %}</p></div></div>{% endfor %}</div></section>
+<p>{% if local %}<a href="/anime/{{ local.id }}">Local: {{ local.file_count }} episodes</a>{% else %}<span class="muted">Not downloaded</span>{% endif %}</p></div></div>{% endfor %}</div></section>
 {% endblock %}

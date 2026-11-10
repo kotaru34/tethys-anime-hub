@@ -1,5 +1,5 @@
-{% extends 'base.html' %}{% block title %}Окремі субтитри – Kotaru Anime{% endblock %}
-{% block content %}<h1>Зовнішні субтитри</h1><p class="muted">Знайдено {{ total }} файлів у вкладених підпапках торрент-релізів. Цей розділ показує інвентаризацію; автоматичного підключення до VFS поки немає.</p>
-<div class="panel"><div class="table-scroll"><table><thead><tr><th>Реліз</th><th>Файл</th><th>Мова (підказка)</th><th>Епізод (підказка)</th></tr></thead><tbody>
+{% extends 'base.html' %}{% block title %}Subtitle inventory – Tethys Anime Hub{% endblock %}
+{% block content %}<h1>External subtitles</h1><p class="muted">Found {{ total }} files in nested torrent-release folders. This is an inventory only; automatic VFS attachment is not implemented yet.</p>
+<div class="panel"><div class="table-scroll"><table><thead><tr><th>Release</th><th>File</th><th>Language (hint)</th><th>Episode (hint)</th></tr></thead><tbody>
 {% for item in rows %}<tr><td>{{ item.release }}</td><td>{{ item.relative_path }}</td><td>{{ item.language_hint or '—' }}</td><td>{{ item.episode_hint if item.episode_hint is not none else '—' }}</td></tr>{% endfor %}
 </tbody></table></div></div>{% endblock %}
