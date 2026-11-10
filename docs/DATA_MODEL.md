@@ -173,3 +173,63 @@ Do **not** destroy the current `anime` table or change its `id` column in one de
 ## Ownership rules / backup
 
 PostgreSQL is authoritative for Work identity and personal history. Jellyfin/Shoko are **external technical services**, retaining their own internal state and DBs – do not fake a PostgreSQL replacement for Shoko. Backup PostgreSQL with pg_dump and optionally WAL; separately back up Shoko, Jellyfin settings/plugins and local model version files. Never back up original torrent data as part of application metadata jobs; existing storage policy applies.
+
+## Behavioral telemetry and account profile (target schema addition)
+
+Do not overload `user_preference_events` with every noisy player heartbeat. Use dedicated, short-retention, provider-authenticated raw session events; derive compact versioned aggregates from them.
+
+```sql
+-- Illustrative target DDL; adapt keys to migrated users/works and real Jellyfin IDs.
+CREATE TABLE user_playback_events (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL,
+  work_id uuid REFERENCES works(id),
+  jellyfin_item_id text,
+  delivery_id text UNIQUE,
+  source_session_id text,
+  event_type text NOT NULL CHECK(event_type IN ('START','PROGRESS','STOP')),
+  event_at timestamptz NOT NULL,
+  received_at timestamptz NOT NULL DEFAULT now(),
+  position_ticks bigint CHECK(position_ticks IS NULL OR position_ticks >= 0),
+  duration_ticks bigint CHECK(duration_ticks IS NULL OR duration_ticks >= 0),
+  is_paused boolean,
+  is_automated boolean,
+  payload_quality text NOT NULL DEFAULT 'UNVERIFIED'
+);
+CREATE INDEX playback_events_user_time_idx ON user_playback_events(user_id,event_at DESC);
+CREATE TABLE user_playback_aggregates (
+  user_id uuid NOT NULL,
+  work_id uuid NOT NULL REFERENCES works(id),
+  observation_version integer NOT NULL,
+  metrics jsonb NOT NULL,
+  effective_sample_count numeric NOT NULL DEFAULT 0,
+  observation_confidence real NOT NULL CHECK(observation_confidence BETWEEN 0 AND 1),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(user_id,work_id,observation_version)
+);
+CREATE TABLE user_taste_claims (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL,
+  aspect_keys text[] NOT NULL,
+  direction text NOT NULL,
+  strength real,
+  confidence real NOT NULL CHECK(confidence BETWEEN 0 AND 1),
+  evidence_refs jsonb NOT NULL DEFAULT '[]',
+  human_decision text,
+  claim_version integer NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE user_taste_summaries (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL,
+  model_version text NOT NULL,
+  source_fingerprint text NOT NULL,
+  claim_ids uuid[] NOT NULL,
+  narrative text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+**Privacy & retention:** account preference and consent fields live on the user/settings entity; raw events default to 30-day retention, configurable. Deleting behavior must remove raw events, derived aggregates, behavior-derived claims/summaries and retrain affected preference weights; keep explicitly authored ratings/reviews untouched. Session source payloads never exposed to LLMs, external providers or Git. All queries account-scoped, with index on user/time. See [BEHAVIORAL_LEARNING.md](BEHAVIORAL_LEARNING.md) and [PREFERENCE_PROFILE.md](PREFERENCE_PROFILE.md).
+
+**Audio-language neutrality:** do not populate a universal `target_audio_language`. Episode stream rows store all observed languages, including `und`, while optional per-user ordered language preferences belong in account settings. The v0.1 `dubbed_count` scalar remains legacy; future schema should replace it with per-language episode availability, without forcing a migration that destroys existing values.

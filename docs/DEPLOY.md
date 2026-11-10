@@ -1,8 +1,8 @@
 # MVP v0.1 deployment on Proxmox VE 9 (Ukraine)
 
-**Status:** this repository currently stores product and engineering specifications. The *already assembled* runnable v0.1 source archive was supplied in the preceding ChatGPT conversation as `kotaru-anime-v0.1.zip`. **It is not yet present as normal source files in this Git repository.** Install from that archive until the implementation is imported; do not expect `git clone` of this docs-only stage to run `docker compose`.
+**Status:** the MVP v0.1 source code is now committed in this repository. It has passed local unit tests, but integration with the owner's real Proxmox/Jellyfin/Shoko systems remains unverified.
 
-The source archive already includes a more detailed original `docs/DEPLOY_UK.md` of ~25 KB, a Compose stack, migration, tests and backup helper. This document is the durable deployment overview and checklist; deployment is not yet verified on the actual hosts.
+The source archive already includes a more detailed original `docs/DEPLOY.md` of ~25 KB, a Compose stack, migration, tests and backup helper. This document is the durable deployment overview and checklist; deployment is not yet verified on the actual hosts.
 
 ## Target hosts
 
@@ -42,11 +42,11 @@ Jellyfin library configuration: use Shokofin-recommended library type and direct
 
 ## Shoko + private app stack
 
-From the previously supplied `kotaru-anime-v0.1.zip` archive on Debian Docker VM:
+From the GitHub repository on the Debian Docker VM:
 
 ```bash
-unzip kotaru-anime-v0.1.zip
-cd kotaru-anime
+git clone https://github.com/kotaru34/tethys-anime-hub.git
+cd tethys-anime-hub
 cp .env.example .env
 chmod 600 .env
 ```
@@ -66,7 +66,6 @@ JELLYFIN_URL=http://<jellyfin-lan-ip>:8096
 JELLYFIN_PUBLIC_URL=http://<jellyfin-lan-ip>:8096
 JELLYFIN_API_KEY=<from-jellyfin-dashboard>
 BIND_IP=<docker-vm-lan-ip>
-TARGET_AUDIO_LANGUAGE=ukr
 COOKIE_SECURE=0
 LLM_BASE_URL=
 LLM_MODEL=
@@ -100,11 +99,11 @@ Import library in Shoko GUI (`http://<VM-IP>:8111`) pointing to `/Anime`; config
 ## Existing MVP limitations (before new architecture migration)
 
 - v0.1 primarily catalogs media exposed by Jellyfin; it **cannot yet create a future MAL-only entry from URL**.
-- No automated deep recommendation engine yet; this is fully specified in [RECOMMENDER_DESIGN_UK.md](RECOMMENDER_DESIGN_UK.md).
+- No automated deep recommendation engine yet; this is fully specified in [RECOMMENDER_DESIGN.md](RECOMMENDER_DESIGN.md).
 - Nested subtitle files are found and inventoried, **not guaranteed attached to Jellyfin playback**.
 - Player opens Jellyfin Web; no native integrated player.
 - Some release groups are filename/path heuristics only.
-- Existing identity key is Jellyfin ID. **Do not patch in remote-only fake Jellyfin IDs**; migrate Work identity first per [DATA_MODEL_UK.md](DATA_MODEL_UK.md).
+- Existing identity key is Jellyfin ID. **Do not patch in remote-only fake Jellyfin IDs**; migrate Work identity first per [DATA_MODEL.md](DATA_MODEL.md).
 
 ## Backup, security and maintenance
 
@@ -113,3 +112,9 @@ Import library in Shoko GUI (`http://<VM-IP>:8111`) pointing to `/Anime`; config
 - Protect `.env`, logs and any user ratings/reviews; public GitHub repo stores code/specs only.
 - Rebuild only after DB backup; run Alembic migration before worker/app. Avoid automatic `latest` images in production: pin known-compatible versions/digests.
 - Weekly recommender and announced anime refresh arrive in later milestone, not in MVP v0.1.
+
+## Revision: English UI, theme and neutral audio
+
+Development and runtime UI language is English. The initial template provides a **Theme** menu with System/Dark/Light/AMOLED and remembers the browser choice. AMOLED background/cards/panels are pure black while keeping accessible borders. There is **no** `TARGET_AUDIO_LANGUAGE` setting or default Ukrainian dub filter in the updated MVP. The detail page counts actually detected episodes per audio language. Full design: [UI_DESIGN.md](UI_DESIGN.md).
+
+Behavioral learning is **not yet enabled**. When implemented, Jellyfin's Webhook plugin will send authenticated start/progress/stop events to the app; **do not configure a public webhook endpoint or claim events are stored yet**. Account controls, consent and deletion are specified in [BEHAVIORAL_LEARNING.md](BEHAVIORAL_LEARNING.md).

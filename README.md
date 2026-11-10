@@ -1,45 +1,56 @@
 # Tethys Anime Hub
 
-**Self-hosted anime library, release-aware media catalog, personal watchlist and explainable adaptive recommendation engine.**
+**Self-hosted anime library, torrent-safe media catalog, watchlist for unowned/upcoming works, and adaptive personal recommendations.**
 
-**Мета:** одна приватна бібліотека для *наявних* релізів, *незавантажених* аніме й *майбутніх анонсів*, із персональними оцінками/відгуками, зв'язками франшиз і рекомендаціями, які навчаються не лише на жанрах, а й на візуальному стилі, персонажах, тональності, сюжеті та тонких вподобаннях.
+Tethys unifies local MKV releases and online metadata with works saved before they have aired or been downloaded. Ratings and personal reviews are separate, and the recommendation system is designed to learn from **fine-grained taste and cautious observation of actual viewing habits**, not merely genres or popularity.
 
-## Документи проєкту
+## Documentation
 
-- [Повне бачення, вимоги, стек, інфраструктура, обмеження та дорожня карта](docs/PRODUCT_ARCHITECTURE_UK.md)
-- [Специфікація персональної рекомендаційної системи](docs/RECOMMENDER_DESIGN_UK.md)
-- [Стратегія джерел, API, скрапінгу та походження даних](docs/DATA_SOURCES_UK.md)
-- [Модель даних та план безпечної міграції з MVP](docs/DATA_MODEL_UK.md)
-- [Машинозчитувана онтологія з 91 ознаки](spec/features.v1.json)
-- [Розгортання MVP на Proxmox](docs/DEPLOY_UK.md)
+- [Product vision, architecture, hardware and roadmap](docs/PRODUCT_ARCHITECTURE.md)
+- [Personalized recommendation engine](docs/RECOMMENDER_DESIGN.md)
+- [Behavioral learning from Jellyfin playback](docs/BEHAVIORAL_LEARNING.md)
+- [Natural-language and editable Taste Profile](docs/PREFERENCE_PROFILE.md)
+- [UI/UX: responsive modern design and AMOLED True Black](docs/UI_DESIGN.md)
+- [Data sources, providers and API policies](docs/DATA_SOURCES.md)
+- [PostgreSQL data model and safe migration](docs/DATA_MODEL.md)
+- [MVP deployment on Proxmox VE](docs/DEPLOY.md)
+- [Machine-readable anime feature ontology (91 factors)](spec/features.v1.json)
+- [Behavior signal definitions](spec/behavior_signals.v1.json)
+- [Instructions for coding agents and future sessions](AGENTS.md)
 
-## Поточна архітектура (рішення)
+**Working language:** English for UI, code, comments, technical documentation, configuration and tests. Localization can be added later. **No global default anime audio/subtitle language**; detect all tracks, preserve unknowns, and use optional per-account preferences.
 
-- **Shoko + Shokofin** – хешування, AniDB, відповідності випусків та сезони.
-- **Jellyfin** у Proxmox LXC + **Intel UHD 630 Quick Sync** через DRM render node; вбудований дисплей ноутбука лишається доступним.
-- **FastAPI + Jinja2** – приватний Web UI/API (без окремого Next.js runtime на цьому етапі).
-- **PostgreSQL** – довгоживучі аніме-записи, user state, метадані, feedback, recommendation runs; **pgvector** як заплановане розширення для пошуку.
-- **Python workers** – сканування за подіями, enrichment, weekly recommendation jobs.
-- **Qwen3.6-35B-A3B** через існуючий локальний llama-server – структурований семантичний аналіз із дозволеним набором інструментів, валідацією та provenance; не виконує довільні shell/network запити.
-- **AniDB, AniList, Jikan/MAL, Fribb anime-lists** – пріоритет API, точні ID; інші відкриті джерела лише після перевірки ToS/robots.
+## Stack and infrastructure
 
-## Безумовні інваріанти
+| Concern | Choice |
+|---|---|
+| Release/episode identification | Shoko + AniDB hashes |
+| Jellyfin integration | Shokofin / Shoko-managed VFS |
+| Media playback | Jellyfin in PVE LXC, Intel UHD 630 QSV via DRM render node |
+| Own application | FastAPI + Jinja2 + minimal JavaScript |
+| Durable state | PostgreSQL; pgvector when benchmarked and installed |
+| Data enrichment | AniList GraphQL, Jikan/MAL, Fribb anime-lists; narrowly scoped, rate-limited |
+| Local reasoning | Qwen3.6-35B-A3B through existing llama-server; constrained tools and validated output |
+| Habit observations | Jellyfin Webhook events; account-controlled collection and confidence-aware aggregation |
+| Recommendations | Weekly multi-lane retrieval + explainable preference model + diversity/exploration |
+| UI | Contemporary responsive poster catalog; Dark, Light, System, **AMOLED** (#000 background and surfaces) |
 
-1. Оригінальний `/Anime/release_name/*.mkv` і вкладені субтитри **ніколи не модифікуються**: bind mount `:ro`. Торренти продовжують роздаватися.
-2. **Anime Work** – незалежна від файлів сутність (власний UUID); локальні Jellyfin/Shoko IDs – лише прив'язки. Анонс може бути у бібліотеці без файлів і пізніше отримати медіа без втрати відгуку чи оцінки.
-3. Жодних вигаданих збігів: ID + джерело + confidence + перевірка; ручне підтвердження переживає rescans.
-4. Неочевидні вподобання, якість мальовки та характер персонажів мають таку ж принципову можливість впливу на персоналізацію, як і жанри; **невідоме ≠ негативне**.
-5. Рекомендації не викидають кандидата через кілька невідповідних факторів; exploration/diversity + пояснення + негативний/позитивний feedback.
-6. Публічні дані використовуються лише в межах правил їхніх джерел; конфігурації, токени й приватні відгуки не комітяться.
+## Invariants
 
-## Статус
+1. `/Anime/<release>/*.mkv` and nested subtitles are **read-only**. Active torrents and Shoko-managed VFS are never modified by our code.
+2. **Canonical Work UUID is independent of Jellyfin media IDs**. A future MAL-only title exists before there is an MKV and later gains a local-media association without losing annotations.
+3. Missing metadata is *unknown*, not false. Cross-provider IDs are namespaced, evidence-backed and never fabricated.
+4. The recommendation system considers artworks/colors **and actual animation evidence**, protagonist temperament, relationships/subtext, narrative factors, violence, and other subtle signals. Poster art ≠ animation quality.
+5. Implicit watch behavior is weaker and more confounded than explicit reviews: bingeing is not automatically `10/10`; slow watching is not automatically dislike. The taste profile displays confidence and supports corrections.
+6. No rigid genre exclusions or globally preferred audio language. Only explicit user restrictions can act as hard filters.
+7. User viewing histories, tokens and secrets remain private and do not go to public providers or Git.
 
-**MVP v0.1** підготовлено раніше окремим архівом: Jellyfin-based індексація, AniDB→AniList matching, PostgreSQL, оцінки/відгуки, легкий Web UI. Опис нової моделі Work/Watchlist та гібридного recommender нижче є **затвердженим design target, а не твердженням, що ці функції вже працюють**.
+## Current status
 
-Поточний MVP використовує Jellyfin ID як PK. Перед реалізацією watchlist потрібно провести міграцію до незалежного Work ID (див. docs/DATA_MODEL_UK.md). Не вводити тимчасові `remote:` ID без продуманого merge.
+**MVP v0.1 source is committed**: FastAPI/Jinja UI, Jellyfin-based indexing, sidecar inventory, AniDB→AniList matching, PostgreSQL, ratings/reviews, Compose and tests. The MVP UI supports a local theme switcher, including AMOLED, and displays detected audio-language episode availability without a forced target locale.
 
-## Початок роботи
+**Design-only / next milestones:** independent canonical Work migration, MAL-only upcoming watchlist, secured playback telemetry ingestion, confidence-aware self-learning recommendation engine, visual embeddings, and generated editable Taste Profile. The code is **not yet validated on the owner's Proxmox hosts**. Do not claim those future capabilities are implemented.
 
-Вихідний код MVP та відтворюваний deployment зберігатимуться в цьому репозиторії. Важливо спочатку виконати acceptance tests із реальними MKV/ASS та Jellyfin/Shokofin. Подальший розвиток – по малих перевірюваних міграціях із CI, без змін торрентів.
+See [GitHub Issues](https://github.com/kotaru34/tethys-anime-hub/issues) for milestones. Develop in small, reproducible, tested changes; retain Shoko/Jellyfin independently owned databases and backup them separately.
 
-*Цей приватний продукт не пов'язаний з AniList, MAL, Jellyfin або Shoko.*
+*Personal project. Not affiliated with AniList, MyAnimeList, Jellyfin or Shoko.*

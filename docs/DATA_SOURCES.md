@@ -85,3 +85,9 @@ Network failures: exponential backoff + jitter, process a small bounded batch, H
 - [Jikan OpenAPI specification](https://github.com/jikan-me/jikan-rest/blob/master/storage/api-docs/api-docs.json)
 - [Fribb/anime-lists](https://github.com/Fribb/anime-lists)
 - [Alternative anime-offline-database successor](https://github.com/cedya77/anime-offline-database)
+
+## Playback event origin and data minimization
+
+Jellyfin's [Webhook plugin](https://github.com/jellyfin/jellyfin-plugin-webhook) documents PlaybackStart, PlaybackProgress and PlaybackStop notification types and playback position data. A user-specific, authenticated receiver can consume them without polling an external resource or scraping watch history. The plugin's exact template and version must be tested against the installed Jellyfin version before enabling. The Jellyfin `/Sessions/Playing/Progress` API is a *write/report endpoint*, not a historical feed. Details: [BEHAVIORAL_LEARNING.md](BEHAVIORAL_LEARNING.md).
+
+Viewing behavior and personal Taste Profile are **private**. Public metadata API adapters receive only permitted anime IDs/queries, never user playback logs, preference summaries or private review text. No global target language may be inferred from this project's original deployment country.

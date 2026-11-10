@@ -1,6 +1,6 @@
 # Tethys Anime Hub — product vision, architecture and delivery plan
 
-> Canonical project brief, 2026-11-10. This document is **target design**, not a claim that every feature is implemented. Primary language: Ukrainian. Deployment is for a private, single-user system with reserve capacity for 2–3 streams.
+> Canonical project brief, 2026-11-10. This document is **target design**, not a claim that every feature is implemented. Development language: English. Deployment is for a private, single-user system with reserve capacity for 2–3 streams.
 
 ## 1. Purpose and user journeys
 
@@ -41,7 +41,7 @@ An independent self-hosted anime *knowledge library*, not merely a video folder 
 | Public metadata | AniList GraphQL per-title, Jikan/MAL where needed | Read source policies; do not build an indiscriminate copy of upstream databases |
 | Local language model | Existing Qwen3.6-35B-A3B endpoint, OpenAI-compatible `llama-server` | On z425 V100, reserve GPU for inference; no permanent extra GPU jobs |
 | Embeddings | Initially text semantic embeddings via a CPU/shared existing embedding model; pgvector | Image embeddings separately after quality testing; optional CPU off-peak jobs |
-| Recommendation engine | Python scheduled candidate retrieval + feature extraction + adaptive ranker + exploration | See `RECOMMENDER_DESIGN_UK.md` |
+| Recommendation engine | Python scheduled candidate retrieval + feature extraction + adaptive ranker + exploration | See `RECOMMENDER_DESIGN.md` |
 | Orchestration | Docker Compose for database, app, Shoko and workers; Jellyfin in LXC | No Kubernetes, no mandatory Redis |
 | Automation | DB-backed job queue with retry and jobs scheduled once per week | Use advisory locks / SKIP LOCKED; idempotency |
 | Security | LAN-only/VPN, TLS reverse proxy if exposed | Secrets in env, no torrent writes, CSRF, validation & SSRF controls |
@@ -159,7 +159,19 @@ get_evidence(work_id, feature_name)
 
 ## 10. Links to maintained specs
 
-- [Recommendation engine](RECOMMENDER_DESIGN_UK.md)
-- [Provider strategy](DATA_SOURCES_UK.md)
-- [DB schema plan](DATA_MODEL_UK.md)
-- [v0.1 deployment](DEPLOY_UK.md)
+- [Recommendation engine](RECOMMENDER_DESIGN.md)
+- [Provider strategy](DATA_SOURCES.md)
+- [DB schema plan](DATA_MODEL.md)
+- [v0.1 deployment](DEPLOY.md)
+
+## 11. English-only development language, themes and track neutrality (2026-11-10 revision)
+
+All interface copy, comments, configuration names, tests and docs are **English** for now; localization is optional in the future. The UI must be modern and responsive, with **System / Dark / Light / AMOLED True Black** (black background, panels, cards) as distinct options. See [UI design](UI_DESIGN.md).
+
+Track discovery captures all actual audio and subtitle languages, including `und`, **without a hard-coded language preference or global filter**. Optional account-specific ordered preferences may be applied at playback/UX level, never as a forced media assumption. Legacy `dubbed_count` from MVP must not be interpreted as an authoritative global count.
+
+## 12. Behavioral learning and personal taste profile
+
+An account may have zero explicitly rated titles. The engine must still discover **tentative** factors from repeated, quality-checked Jellyfin viewing events (start/progress/stop/rewatch/continuation), normalized by available episodes, length, autoplay, technical playback quality and opportunity. Slow progress is **not** evidence of dislike by itself and a single binge is **not** a 10/10 rating. Learning must be per-account, consent-aware, and backed by confidence and independent-work sample counts. See [Behavioral Learning](BEHAVIORAL_LEARNING.md).
+
+A private [Taste Profile](PREFERENCE_PROFILE.md) summarizes positive/negative/context-dependent preferences as editable English prose, with evidence levels, sources, uncertainty, correction and deletion controls. Generate it with local Qwen only from validated structured claims; cache snapshots. Never invent explanations about the user's real-world routine or circumstances.

@@ -1,6 +1,6 @@
 # AGENTS.md — Project continuation rules
 
-This repository is the durable source of truth for Tethys Anime Hub. Read this file, README.md and docs/PRODUCT_ARCHITECTURE_UK.md before changes; for recommender work also read docs/RECOMMENDER_DESIGN_UK.md, docs/DATA_SOURCES_UK.md and docs/DATA_MODEL_UK.md.
+This repository is the durable source of truth for Tethys Anime Hub. Read this file, README.md and docs/PRODUCT_ARCHITECTURE.md before changes; for recommender work also read docs/RECOMMENDER_DESIGN.md, docs/DATA_SOURCES.md and docs/DATA_MODEL.md.
 
 ## User intent
 Personal, self-hosted, high-quality anime catalog with automatically imported torrent releases; announcement-only anime saved by URL/title **without files**; personal score 0–10 and separate review; nuanced self-learning recommendations weekly, especially **visual style and color, protagonist/character personality and relationships, yuri/yaoi subtext, tone, plot complexity, violence**, and atypical preferences. Do not substitute popularity- or genre-only collaborative filtering.
@@ -17,7 +17,7 @@ Personal, self-hosted, high-quality anime catalog with automatically imported to
 - Respect external API terms, no bulk AniList harvesting, robots/rate limits, use narrow API calls before any scraper.
 
 ## Repository state as of 2026-11-10
-GitHub started empty. The complete product/design docs were first committed. An earlier runnable v0.1 exists as a **separate ChatGPT artifact** `kotaru-anime-v0.1.zip` (32 files) – **not yet committed here as source files**. See issue #1. Do not claim existing code implements announced watchlist or self-learning engine until built/tested.
+GitHub started empty; product/design docs were committed first, and the earlier 32-file runnable MVP v0.1 was then imported as source on main. Local smoke tests passed, but host-specific deployment is not verified. See issue #1 for remaining integration acceptance. Do not claim existing code implements announced watchlist or self-learning engine until built/tested.
 
 ## Implementation practices
 - Small typed interfaces and adapters; reversible Alembic migrations. Idempotent jobs with source caching, proper retry/backoff and no API hammering.
@@ -34,9 +34,18 @@ GitHub started empty. The complete product/design docs were first committed. An 
 - #3 evidence and visual-style extraction
 - #4 weekly suggestions and explainable interface
 - #5 self-learning personalization and offline evaluation
+- #6 behavioral playback analytics and privacy controls
+- #7 modern AMOLED UI and editable Taste Profile
 
 ## When modifying
 1. Inspect repository state and latest issues/PRs.
 2. Choose an issue, write or update acceptance tests first; check provider rules for external calls.
 3. Commit focused changes and document whether feature is **implemented**, **tested locally**, **integration-tested on user's hosts**, or **design-only**.
 4. Keep installation/backup docs current with actual code and compose files.
+
+## Development language, UI and learning updates (2026-11-10)
+- **English only** during development: UI strings, docs, comments, tests, names, user-facing model summaries; optional localization later. Prefer generic `docs/*.md` paths (no `_UK` suffix).
+- Modern accessible responsive UI; selectable **System/Dark/Light/AMOLED**. True AMOLED means page and normal cards/panels **#000**. Refer to docs/UI_DESIGN.md.
+- Never assume Ukrainian or any other audio language. Capture every media track; per-user preferences optional, not hardcoded defaults.
+- Passive Jellyfin playback signals are **weak, noisy, opt-in evidence**. Repeated patterns across independent anime can contribute despite zero manual ratings; no automatic negative rating from infrequent watching. Session reconstruction, opportunity, autoplay and malfunction checks required. Refer to docs/BEHAVIORAL_LEARNING.md.
+- Show an editable, evidence-based, natural-language **Taste Profile** per account. Local Qwen is only a constrained summarizer of structured claims; no invented reasons for viewing behavior. See docs/PREFERENCE_PROFILE.md.

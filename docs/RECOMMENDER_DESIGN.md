@@ -150,3 +150,17 @@ Online:
 7. Scheduled evaluation, ablations, drift monitoring and rollback.
 
 Do not describe “self-learning” as autonomous fine-tuning of Qwen; the system learns via a user preference model, versioned evidence and measured feedback, and may selectively fine-tune smaller models only if data later justifies it.
+
+## J. Implicit behavior, cold-start with zero ratings, and evidence hierarchy (revision)
+
+**Viewing behavior is informative but confounded.** Optional authenticated Jellyfin Webhook start/progress/stop notifications yield per-account session observations (not indiscriminate polling). Separate engaged minutes from jumps, pauses, wall-clock duration and autoplay; compare completed/unfinished works across available episodes, format, dates and observation opportunities. Repeat patterns across **independent titles**, not episode-event counts, are what may slowly affect a taste hypothesis.
+
+An account with `0` manual ratings is supported: multiple deliberate completions/rewatches can generate *weak prior preference estimates* with broad uncertainty; one binge alone is **not** a positive rating. Long inactivity never automatically means dislike. Treat explicit ratings/reviews as higher-trust labels; negative user corrections override behavior, and missing playback data remains missing. See [Behavioral Learning](BEHAVIORAL_LEARNING.md).
+
+Learn *personal observation reliability* and account-specific baseline viewing habits; calibrate on time-split held-out evidence. The cold-start model must publish confidence and evidence count, rather than false certainty. Preserve both preferences and contradictions (e.g. colorful art is loved but one particular protagonist archetype is disliked). Language and track choices are optional descriptive cues, never a global target.
+
+## K. Editable natural-language Taste Profile
+
+The model's current account-specific beliefs are visible in a concise English narrative, including confirmed likes/dislikes, tentative hypotheses from habit patterns, contradictions, visual characteristics, main-character preferences and uncertainty. Store evidence-backed structured claims first; local Qwen may *render* those claims into prose, never invent missing reasons or ratings. Users can inspect, reject, override and prioritize claims; correction events persist across retraining. Generation is on explicit refresh or weekly substantial model updates, never on every page view. Full specification: [PREFERENCE_PROFILE.md](PREFERENCE_PROFILE.md).
+
+AMOLED UI, responsive discover cards, confidence/mismatch explanations and user controls: [UI_DESIGN.md](UI_DESIGN.md). Behavioral model's improvement must be tested as an ablation: explicit-only vs explicit+behavior, particularly for sparse/zero-rated histories.
