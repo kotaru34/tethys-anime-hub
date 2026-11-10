@@ -1,0 +1,1301 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Starter controlled, expandable feature ontology for evidence-aware, personalized anime recommendations; feature magnitude is not user preference.",
+  "scale": {
+    "min": 0,
+    "max": 1,
+    "unknown": null,
+    "description": "0 means the observed trait is absent/low (if evidence supports absence); 1 means high, null means unknown. Never map unknown to 0. User preference direction stored separately."
+  },
+  "confidence": {
+    "min": 0,
+    "max": 1,
+    "description": "source-quality/confidence independent from feature magnitude"
+  },
+  "source_evidence_types": [
+    "official_metadata",
+    "synopsis",
+    "user_review",
+    "public_review",
+    "editorial_article",
+    "owned_mkv_frames",
+    "approved_promo_stills",
+    "cover_only",
+    "manually_curated"
+  ],
+  "feature_groups": [
+    {
+      "group": "visual_palette",
+      "features": [
+        {
+          "key": "color_saturation",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "palette_brightness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "palette_variety",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "color_harmony",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "warm_cool_balance",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "contrast",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "pastel_aesthetic",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "neon_aesthetic",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "visual_vibrancy",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "visual_design",
+      "features": [
+        {
+          "key": "character_design_expressivity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "character_design_cuteness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "character_design_distinctiveness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "facial_emotion_readability",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": ""
+        },
+        {
+          "key": "lineart_clarity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "background_detail",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": ""
+        },
+        {
+          "key": "modern_visual_style",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "retro_visual_style",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "visual_originality",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "animation",
+      "features": [
+        {
+          "key": "motion_fluidity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        },
+        {
+          "key": "animation_consistency",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        },
+        {
+          "key": "action_animation_choreography",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        },
+        {
+          "key": "camera_movement_complexity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        },
+        {
+          "key": "cinematography",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        },
+        {
+          "key": "compositing_quality",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        },
+        {
+          "key": "cgi_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        },
+        {
+          "key": "cgi_integration_quality",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "owned_mkv_frames",
+            "approved_promo_stills",
+            "public_review",
+            "cover_only"
+          ],
+          "requires_visual_evidence": true,
+          "notes": "Cannot be established from poster alone"
+        }
+      ]
+    },
+    {
+      "group": "protagonist",
+      "features": [
+        {
+          "key": "protagonist_agency",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "protagonist_competence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "protagonist_charisma",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "protagonist_vulnerability",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "protagonist_whininess",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "protagonist_moral_complexity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "protagonist_emotional_growth",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "protagonist_distinctiveness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "characters",
+      "features": [
+        {
+          "key": "cast_chemistry",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "character_depth",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "female_character_agency",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "secondary_character_strength",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "friendship_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "found_family_dynamics",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "character_development",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "antagonist_complexity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "relationships",
+      "features": [
+        {
+          "key": "yuri_canon_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "yuri_subtext_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "bl_canon_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "bl_subtext_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "heteroromance_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "romance_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "relationship_tenderness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "relationship_melodrama",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "romantic_chemistry",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        },
+        {
+          "key": "fanservice_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": "Subtext/canon are distinct; do not infer solely from genre"
+        }
+      ]
+    },
+    {
+      "group": "narrative",
+      "features": [
+        {
+          "key": "plot_complexity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "plot_coherence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "plot_twist_density",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "story_serialization",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "worldbuilding_depth",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "originality",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "mystery_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "philosophical_depth",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "emotional_payoff",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "story_pacing",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "dialogue_density",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "episodic_structure",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "tone",
+      "features": [
+        {
+          "key": "humor_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "optimism",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "darkness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "melancholy",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "tension",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "coziness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "drama_intensity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "tragedy_intensity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "absurdity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "wholesomeness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "violence",
+      "features": [
+        {
+          "key": "violence_frequency",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "killing_frequency",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "gore_explicitness",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "psychological_cruelty",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "stakes_severity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "horror_intensity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "production",
+      "features": [
+        {
+          "key": "soundtrack_prominence",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "voice_acting_expressivity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "sound_design_complexity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "source_adaptation_fidelity",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "group": "context",
+      "features": [
+        {
+          "key": "isekai_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "fantasy_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "science_fiction_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "slice_of_life_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "action_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "romance_genre_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        },
+        {
+          "key": "horror_genre_focus",
+          "value_type": "float_0_1",
+          "allow_unknown": true,
+          "evidence_priority": [
+            "official_metadata",
+            "synopsis",
+            "public_review",
+            "editorial_article"
+          ],
+          "requires_visual_evidence": false,
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "extraction_output_schema": {
+    "work_id": "uuid",
+    "feature_key": "ontology key",
+    "numeric_value": "float|null",
+    "confidence": "float 0..1",
+    "supporting_evidence_ids": "uuid[]",
+    "disagreement": "boolean",
+    "model_name": "string",
+    "prompt_version": "string",
+    "human_override": "boolean",
+    "missing_reason": "string|null"
+  },
+  "user_feedback_fields": {
+    "aspect": "feature_key",
+    "direction": [
+      "liked",
+      "disliked",
+      "neutral",
+      "mixed",
+      "unknown"
+    ],
+    "strength": "float 0..1",
+    "context_note": "optional text",
+    "linked_work_ids": "uuid[]",
+    "observed_at": "timestamp"
+  },
+  "rules": [
+    "Never treat high feature intensity as positive user preference without explicit evidence",
+    "Always separate relationship canon from subtext",
+    "Actual animation motion and consistency require video evidence",
+    "Poster aesthetics may be measured but cannot establish motion/animation quality",
+    "Do not let genre mismatch serve as hard exclusion",
+    "An ambiguous public review is an uncertain source, not a user preference",
+    "Allow interactions between features and contexts, and uncertainty masks"
+  ]
+}
