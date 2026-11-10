@@ -30,11 +30,12 @@ def test_login_csrf_review_and_browse():
     try:
         with TestClient(app) as client:
             assert client.get('/').status_code == 200
-            assert 'Вхід' in client.get('/').text
+            assert 'Sign in' in client.get('/').text
             assert client.post('/login', data={'username': 'admin', 'password': 'wrong'}).status_code == 401
             assert client.post('/login', data={'username': 'admin', 'password': 'test-password-only'}).status_code == 200
             page = client.get('/anime/s1').text
             assert 'Demo' in page
+            assert 'Episodes by audio language' not in page  # no episodes available
             import re
             token = re.search(r'name="csrf" value="([^"]+)"', page).group(1)
             assert client.post('/anime/s1/review', data={'csrf': 'bad', 'rating': '9'}).status_code == 403

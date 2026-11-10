@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     sync_interval_seconds: int = 1800
     enrich_interval_seconds: int = 7200
     subtitle_interval_seconds: int = 10800
-    target_audio_language: str = 'ukr'
     llm_base_url: str = ''
     llm_model: str = ''
     llm_api_key: str = ''

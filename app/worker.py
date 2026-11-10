@@ -49,7 +49,7 @@ def sync_jellyfin(client=None):
                 row.match_status = 'provider'
                 row.enriched_at = None
             actual_episodes = children.get(jid, [])
-            stats = summarize_episodes(actual_episodes, settings().target_audio_language.lower())
+            stats = summarize_episodes(actual_episodes)
             for field, value in stats.items():
                 setattr(row, field, value)
             for ep in actual_episodes:

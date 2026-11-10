@@ -1,4 +1,4 @@
-name: kotaru-anime
+name: tethys-anime-hub
 services:
   db:
     image: postgres:17-bookworm

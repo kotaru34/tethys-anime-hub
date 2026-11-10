@@ -15,14 +15,15 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.db import Anime, Episode, Sidecar, SessionLocal, get_db, put_state, read_state
 from app.jellyfin import JellyfinClient
+from app.media import episode_audio_counts
 
 log = logging.getLogger(__name__)
 cfg = settings()
 if not cfg.app_password or not cfg.session_secret or len(cfg.session_secret) < 32:
     raise RuntimeError('Set APP_PASSWORD and SESSION_SECRET (>=32 characters) in .env')
 
-app = FastAPI(title='Kotaru Anime', docs_url=None, redoc_url=None, openapi_url=None)
-app.add_middleware(SessionMiddleware, secret_key=cfg.session_secret, session_cookie='kotaru_session',
+app = FastAPI(title='Tethys Anime Hub', docs_url=None, redoc_url=None, openapi_url=None)
+app.add_middleware(SessionMiddleware, secret_key=cfg.session_secret, session_cookie='tethys_session',
                    same_site='lax', https_only=os.getenv('COOKIE_SECURE', '0') == '1', max_age=60*60*24*14)
 BASE = os.path.dirname(__file__)
 app.mount('/static', StaticFiles(directory=os.path.join(BASE, 'static')), name='static')
@@ -51,7 +52,7 @@ def check_csrf(request: Request, value: str):
 
 def page(request: Request, template: str, **context):
     return templates.TemplateResponse(request, template, {
-        'request': request, 'csrf': csrf_token(request), 'target_language': cfg.target_audio_language,
+        'request': request, 'csrf': csrf_token(request),
         'jellyfin_public_url': cfg.jellyfin_public_url.rstrip('/'), **context,
     })
 
@@ -125,7 +126,8 @@ def anime_detail(request: Request, anime_id: str, db: Session = Depends(get_db))
                      .order_by(Episode.season.asc().nullslast(), Episode.number.asc().nullslast())).all()
     local = {a.anilist_id: a for a in db.scalars(select(Anime).where(Anime.anilist_id.isnot(None), Anime.available.is_(True))).all()}
     related = [(r, local.get(r['id'])) for r in (anime.relations or [])]
-    return page(request, 'detail.html', anime=anime, eps=eps, related=related)
+    return page(request, 'detail.html', anime=anime, eps=eps, related=related,
+                audio_counts=episode_audio_counts(eps))
 
 
 @app.post('/anime/{anime_id}/review')
@@ -219,7 +221,7 @@ def api_anime(request: Request, db: Session = Depends(get_db)):
     protected(request)
     items = db.scalars(select(Anime).where(Anime.available.is_(True)).order_by(Anime.title)).all()
     return [{'id': a.id, 'title': a.title, 'episodes': a.file_count,
-             'total_episodes': a.total_episodes, 'dubbed_count': a.dubbed_count,
+             'total_episodes': a.total_episodes, 'audio_languages': a.audio_languages,
              'rating': a.personal_rating, 'anilist_id': a.anilist_id} for a in items]
 
 
