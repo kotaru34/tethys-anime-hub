@@ -1,0 +1,323 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Event-derived signals for account-level watch habits; not facts about anime content and never numeric personal ratings.",
+  "state": "design_only",
+  "sources": [
+    "jellyfin_webhook_playback_start",
+    "jellyfin_webhook_playback_progress",
+    "jellyfin_webhook_playback_stop",
+    "jellyfin_userdata_coarse_fallback",
+    "explicit_user_feedback"
+  ],
+  "collection": {
+    "consent_scope": "per_account",
+    "modes": [
+      "off",
+      "completion_only",
+      "engagement"
+    ],
+    "default_for_new_account": "off",
+    "default_raw_event_retention_days": 30,
+    "persistence": "postgresql",
+    "no_external_llm_transmission": true
+  },
+  "normalization": {
+    "unit_of_training": "distinct_work_with_reliable_observation",
+    "episode_events_not_independent_user_labels": true,
+    "separate_exposure_and_engagement": true,
+    "exclude_seeks_and_pauses_from_engaged_watch_time": true,
+    "autoplay_is_uncertain": true,
+    "unknown_is_not_negative": true,
+    "confounding_adjustments": [
+      "available_episode_count",
+      "episode_length",
+      "release_schedule",
+      "observed_opportunity",
+      "player_quality",
+      "intentional_vs_automatic_start",
+      "user_baseline"
+    ],
+    "uncertainty": "store posterior/confidence effective sample size; require repeated independent works before stronger claims"
+  },
+  "signals": [
+    {
+      "name": "session_engaged_minutes",
+      "unit": "minutes",
+      "meaning": "strong progression with elapsed active time",
+      "confounders": [
+        "seeks",
+        "pauses",
+        "buffering",
+        "autoplay"
+      ],
+      "family": "positive_engagement",
+      "initial_evidence_strength": "medium",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "episode_coverage_ratio",
+      "unit": "fraction",
+      "meaning": "distinct episode timeline coverage",
+      "confounders": [
+        "seeking",
+        "credits",
+        "intros",
+        "filler episodes"
+      ],
+      "family": "completion",
+      "initial_evidence_strength": "medium",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "work_completion_ratio",
+      "unit": "fraction",
+      "meaning": "verified watched episodes / known eligible episodes",
+      "confounders": [
+        "unknown_total",
+        "airing_schedule",
+        "skipped_specials"
+      ],
+      "family": "completion",
+      "initial_evidence_strength": "medium",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "time_to_next_episode",
+      "unit": "hours",
+      "meaning": "delay from verified end to deliberate next episode",
+      "confounders": [
+        "working_hours",
+        "autoplay",
+        "availability",
+        "sleep"
+      ],
+      "family": "continuation",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "active_days_per_work",
+      "unit": "days",
+      "meaning": "distinct dates with genuine engaged minutes",
+      "confounders": [
+        "schedule",
+        "long_series_length"
+      ],
+      "family": "continuation",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "work_viewing_span",
+      "unit": "hours",
+      "meaning": "wall time from first genuine engagement to verified completion",
+      "confounders": [
+        "episodes_available",
+        "schedule",
+        "availability"
+      ],
+      "family": "velocity",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "normalized_engagement_rate",
+      "unit": "fraction",
+      "meaning": "engaged watched minutes / observed eligible opportunity",
+      "confounders": [
+        "availability",
+        "missing_events",
+        "episodes_released"
+      ],
+      "family": "velocity",
+      "initial_evidence_strength": "medium",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "intentional_binge_sessions",
+      "unit": "count",
+      "meaning": "multiple genuine consecutive episodes in session",
+      "confounders": [
+        "autoplay",
+        "short_episodes",
+        "background_playing"
+      ],
+      "family": "binge",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "deliberate_rewatch_minutes",
+      "unit": "minutes",
+      "meaning": "active repeat viewing previously watched material",
+      "confounders": [
+        "seek",
+        "technical_retries",
+        "accidental_restart"
+      ],
+      "family": "rewatch",
+      "initial_evidence_strength": "medium",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "revisit_after_gap",
+      "unit": "boolean",
+      "meaning": "deliberate return after interruption",
+      "confounders": [
+        "schedule",
+        "new_season_release",
+        "availability"
+      ],
+      "family": "continuation",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "drop_or_skip_reason",
+      "unit": "category",
+      "meaning": "explicitly user-entered reason for dropping/deferring",
+      "confounders": [
+        "ambiguous_text"
+      ],
+      "family": "explicit",
+      "initial_evidence_strength": "high",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "passive_abandonment",
+      "unit": "boolean",
+      "meaning": "no return after starting",
+      "confounders": [
+        "school",
+        "work",
+        "seasonal_airing",
+        "bad_network",
+        "no_time"
+      ],
+      "family": "weak_negative",
+      "initial_evidence_strength": "very_low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "repeated_short_starts",
+      "unit": "count",
+      "meaning": "multiple short play starts with no sustained engagement",
+      "confounders": [
+        "device_tests",
+        "intro_skip",
+        "buffering",
+        "seek"
+      ],
+      "family": "friction",
+      "initial_evidence_strength": "very_low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "playback_failure_ratio",
+      "unit": "fraction",
+      "meaning": "known buffering, crash or transcode failures during sessions",
+      "confounders": [
+        "missing_telemetry"
+      ],
+      "family": "data_quality",
+      "initial_evidence_strength": "high",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "autoplay_fraction",
+      "unit": "fraction",
+      "meaning": "automatic vs intentional starts",
+      "confounders": [
+        "client_support",
+        "plugin_payload_variations"
+      ],
+      "family": "data_quality",
+      "initial_evidence_strength": "medium",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "selected_audio_languages",
+      "unit": "set",
+      "meaning": "observed chosen audio tracks by account",
+      "confounders": [
+        "device_defaults",
+        "missing_track_metadata"
+      ],
+      "family": "optional_language_preference",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "selected_subtitle_languages",
+      "unit": "set",
+      "meaning": "observed chosen subtitle tracks by account",
+      "confounders": [
+        "forced_subtitles",
+        "client_defaults",
+        "missing_track_metadata"
+      ],
+      "family": "optional_language_preference",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "viewing_routine_shift",
+      "unit": "probability",
+      "meaning": "time-local change in overall opportunity/pace",
+      "confounders": [
+        "unknown_external_factors",
+        "few_sessions"
+      ],
+      "family": "context_uncertainty",
+      "initial_evidence_strength": "low",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    },
+    {
+      "name": "watchlist_save_intent",
+      "unit": "boolean",
+      "meaning": "explicit planned/save event",
+      "confounders": [
+        "curiosity",
+        "social_recommendation"
+      ],
+      "family": "interest_not_enjoyment",
+      "initial_evidence_strength": "medium",
+      "feature_type": "behavioral_observation",
+      "inferred_preference_strength": "learned_separately_with_uncertainty"
+    }
+  ],
+  "negative_examples": [
+    "One anime completed in a day does not imply a 10/10 rating.",
+    "Several weeks of inactivity does not imply dislike.",
+    "Title downloaded but not started does not imply dislike.",
+    "Play position jumping 40 minutes is not 40 minutes of genuine viewing.",
+    "Autoplay across an entire season does not establish enthusiasm."
+  ],
+  "model_policy": {
+    "manual_rating_overrides_implicit": true,
+    "manual_corrections_persist": true,
+    "local_llm_only_for_text_summary": true,
+    "weekly_retraining_default": true,
+    "calibration_and_temporal_holdout_required": true,
+    "editable_natural_language_profile": true,
+    "deterministic_template_fallback": true
+  }
+}
