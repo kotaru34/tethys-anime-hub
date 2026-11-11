@@ -24,6 +24,11 @@ class ParsingTests(unittest.TestCase):
             self.assertEqual(episode_number(name), episode, name)
     def test_exact_titles(self):
         self.assertEqual(title_similarity('Ragna Crimson', 'Ragna Crimson'),1.0)
+    def test_ordinal_season_aliases(self):
+        self.assertEqual(title_similarity('Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e S3',
+                         'Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 3rd Season'),1.0)
+        self.assertEqual(title_similarity('Anime Season 4', 'Anime 4th Season'),1.0)
+
     def test_different_season_is_not_auto(self):
         self.assertEqual(ranked_candidates('Anime S4',[{'ID':1,'Title':'Anime S3'}]),[])
     def test_group_paths(self):

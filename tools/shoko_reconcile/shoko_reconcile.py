@@ -38,6 +38,12 @@ MAX_EP = 999
 def normalized(s: str) -> str:
     s = unicodedata.normalize("NFKC", s).casefold()
     s = s.replace("&", " and ")
+    # Normalize equivalent season suffixes across release names and AniDB titles.
+    # Restrict this rule to season markers, not arbitrary trailing title numbers.
+    s = re.sub(r"(?<!\w)s(?:eason)?\s*0*([1-9]\d?)(?!\w)",
+               lambda m: " season " + str(int(m.group(1))) + " ", s)
+    s = re.sub(r"(?<!\w)([1-9]\d?)(?:st|nd|rd|th)\s+season(?!\w)",
+               lambda m: " season " + str(int(m.group(1))) + " ", s)
     s = re.sub(r"[^\w]+", " ", s, flags=re.UNICODE)
     return " ".join(s.split())
 
