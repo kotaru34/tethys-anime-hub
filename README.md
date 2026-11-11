@@ -13,7 +13,8 @@ Tethys unifies local MKV releases and online metadata with works saved before th
 - [UI/UX: responsive modern design and AMOLED True Black](docs/UI_DESIGN.md)
 - [Data sources, providers and API policies](docs/DATA_SOURCES.md)
 - [PostgreSQL data model and safe migration](docs/DATA_MODEL.md)
-- [**Current native single-LXC deployment (remote PostgreSQL, no Docker)**](docs/NATIVE_LXC.md)
+- [**Current clean-install topology – storage-local Shoko + GPU-local Jellyfin/Tethys**](docs/DEPLOY_TOPOLOGY.md)
+- [Superseded all-in-one LXC instructions (historical)](docs/NATIVE_LXC.md)
 - [Alternative older Docker/VM deployment](docs/DEPLOY.md)
 - [Machine-readable anime feature ontology (91 factors)](spec/features.v1.json)
 - [Behavior signal definitions](spec/behavior_signals.v1.json)
@@ -52,7 +53,7 @@ Tethys unifies local MKV releases and online metadata with works saved before th
 
 **Design-only / next milestones:** independent canonical Work migration, MAL-only upcoming watchlist, secured playback telemetry ingestion, confidence-aware self-learning recommendation engine, visual embeddings, and generated editable Taste Profile. The code is **not yet validated on the owner's Proxmox hosts**. Do not claim those future capabilities are implemented.
 
-**Current installation preference:** unprivileged Debian 13 LXC 1510 with native systemd services; PostgreSQL already exists on the private LAN. See [NATIVE_LXC.md](docs/NATIVE_LXC.md). Docker Compose is an *alternative*, not a requirement.
+**Current installation decision (supersedes 2026-11-11 single-LXC attempt):** two unprivileged Debian 13 LXCs on **different PVE hosts** – native Shoko on the physical anime-storage PVE host (10.169.6.200), and Jellyfin/Shokofin + Tethys Web/Worker on the Intel UHD 630 laptop PVE host. Existing private-LAN PostgreSQL remains remote, no Docker or VM. The user intends to reinstall LXCs from scratch and rewind chat; [DEPLOY_TOPOLOGY.md](docs/DEPLOY_TOPOLOGY.md) is authoritative even if older conversation says otherwise.
 
 See [GitHub Issues](https://github.com/kotaru34/tethys-anime-hub/issues) for milestones. Develop in small, reproducible, tested changes; retain Shoko/Jellyfin independently owned databases and backup them separately.
 
