@@ -1,3 +1,7 @@
+# Superseded historical guide – NOT current deployment
+
+> This older single-LXC deployment plan is no longer current. The owner is restarting deployment from clean LXCs with **Shoko on the PVE host holding the physical anime disk**, and **Jellyfin/Shokofin/Tethys on the i5-9300H PVE host**, using existing remote PostgreSQL. Follow [DEPLOY_TOPOLOGY.md](DEPLOY_TOPOLOGY.md) instead. Especially do not repeat enabling Shoko's watcher on /Anime: its 5.3.3 error loop caused startup hang.
+
 # Native single-LXC deployment (Debian 13, remote PostgreSQL)
 
 **Current target topology, 2026-11-11.** This replaces the *optional* Docker/VM deployment path for the owner's Proxmox install. All runtime services live in existing **unprivileged LXC 1510**. PostgreSQL for Tethys is on a pre-existing remote private-LAN server. No Docker, no additional VM, no PostgreSQL server inside the LXC.
