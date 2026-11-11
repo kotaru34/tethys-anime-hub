@@ -1,4 +1,4 @@
-# Tethys Shoko Reconciler v2
+# Tethys Shoko Reconciler v2.1
 
 **Status:** implemented and locally tested; no live Shoko apply/verification yet. Targets Shoko **5.3.3**, uses its supported **API v3 Manual Links** (no fake ED2K). Files in `/Anime`, MKV tracks, sidecars, torrent paths and Shoko's SQLite database are **never edited** by this tool. A submitted API link may still be processing asynchronously; the final Shoko `--status` is the authority.
 
@@ -6,6 +6,7 @@
 
 v1 examined 1,038 unknown files across 83 release folders. It prepared 690 potential mappings, but title and episode heuristics missed many valid releases. v2 adds:
 
+- Cross-group candidate reuse: when an entry is missing from a release-specific AniDB search, reuse series/sequel candidates discovered in other Shoko groups, with explicit season/year disambiguation.
 - Filename alternatives, punctuation and romanization normalization, tech-tag removal, release-group ignorance, Unicode titles, typo-tolerant scoring, multiple query variants.
 - Optional **locally cached external alias/ID crosswalk** from `cedya77/anime-offline-database` (ODbL 1.0 + DbCL 1.0, derived from `manami-project`). Supports AniDB IDs from MAL/AniList naming differences without sending the user's file names to external LLMs.
 - Episode parser for `S02E01`, `S02EP01`, `[01]`, `- 01`, `Name 01`, `Ep 01`, `special 1`, movie markers. Keeps episode type and series identity separate.
@@ -17,7 +18,7 @@ v1 examined 1,038 unknown files across 83 release folders. It prepared 690 poten
 
 ### Measured offline work so far (not live success)
 
-Using the user's v1 `shoko-plan.json` as an **offline fixture without the external alias catalog**, v2 reports **779 potential file links** of 1,038 unknown (vs v1's 690). This is **before** verifying series/episodes through live Shoko APIs, link job completion or actual metadata completeness. It is **not** a claim of achieving the `<=5%` unrecognized target. The user's accepted mapping error ceiling `<=10%` also needs sampling against the actual result; a similarity score is not a calibrated error probability. Any unknown AniDB release file record fields must be shown as `Unknown` rather than fabricated.
+Using the user's v1 `shoko-plan.json` as an **offline fixture without the external alias catalog**, v2.1 reports **808 potential file links** of 1,038 unknown (vs v1's 690). This is **before** verifying series/episodes through live Shoko APIs, link job completion or actual metadata completeness. With the user-reported **1,167 total files**, even 808 successful links would leave **230/1,167 (19.71%) unknown**, meaning at least **172 further verified links** are still required to reach the `<=5%` target. It is **not** a claim of achieving the `<=5%` unrecognized target. The user's accepted mapping error ceiling `<=10%` also needs sampling against the actual result; a similarity score is not a calibrated error probability. Any unknown AniDB release file record fields must be shown as `Unknown` rather than fabricated.
 
 ## Upgrade and run inside Shoko LXC
 
@@ -35,6 +36,7 @@ curl -fL --retry 3 \
 # Upgrade the already saved v1 plan without making any Shoko API calls.
 python3 shoko_reconcile.py \
   --analyze-plan /root/shoko-plan.json \
+  --total-files 1167 \
   --catalog /var/cache/tethys/anime-offline-database.jsonl \
   --plan /root/shoko-plan-v2.json
 ```

@@ -99,6 +99,31 @@ class ReportTests(unittest.TestCase):
             a=analyze_report(f,catalog=AliasCatalog(p))
             self.assertEqual(a["groups"][0]["selected_anidb_id"],13871)
 
+    def test_ova_untyped_tv_candidate_must_not_autolink(self):
+        f=fixture("5-toubun no Hanayome [OVA] - AniLiberty [WEBRip 1080p]",
+                  ["5-toubun_no_Hanayome_[01].mkv"],
+                  candidates=[(14247,"Go-Toubun no Hanayome",0.9)])
+        report=analyze_report(f)
+        self.assertIsNone(report["groups"][0]["selected_anidb_id"])
+
+    def test_part_two_requires_specific_cour_identity(self):
+        f=fixture("ReZero (Season 2 Part 2)",
+                  ["ReZero S02E14.mkv","ReZero S02E15.mkv"],
+                  candidates=[(14792,"Re:Zero (2020)",.96),(15593,"Re:Zero (2021)",.94)])
+        report=analyze_report(f)
+        self.assertIsNone(report["groups"][0]["selected_anidb_id"])
+
+    def test_second_season_candidates_resolved_from_other_group(self):
+        folder="Seijo no Maryoku wa Bannou Desu 2nd Season - AniLibria [WEBRip 1080p]"
+        f=fixture(folder,["Seijo_no_Maryoku_wa_Bannou_Desu_[01].mkv"],
+                  candidates=[(15720,"Seijo no Maryoku wa Bannou Desu",.88)])
+        f["groups"].append({"folder":"Seijo no Maryoku wa Bannou Desu - Release",
+            "mode":"exact_title","selected_anidb_id":15720,"candidates":[
+                {"anidb_id":17246,"title":"Seijo no Maryoku wa Bannou Desu II","score":.96,"type":"Unknown"}],
+            "files":[]})
+        report=analyze_report(f)
+        self.assertEqual(report["groups"][0]["selected_anidb_id"],17246)
+
     def test_cour_spinoff_is_not_blindly_linked(self):
         g="Youjo Senki (BDRip 1920x1080 x264 FLAC)"
         f=fixture(g,["[ReinForce] Youjo Senki - 01 (BDRip).mkv","[ReinForce] Youjo Shenki - 01 (BDRip).mkv"],

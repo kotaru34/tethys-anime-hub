@@ -149,7 +149,15 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
     overrides = overrides or {}
     group_overrides = overrides.get("groups", overrides) if isinstance(overrides, dict) else {}
     file_overrides = overrides.get("files", {}) if isinstance(overrides, dict) else {}
-    out = {"version":2, "source_unrecognized_at_scan": source.get("total_unrecognized_at_scan",source.get("source_unrecognized_at_scan")),
+    # Reuse independent AniDB title candidates seen in *other* release groups.
+    # A sequel missing from one Shoko fuzzy search is often present in its prequel's hits.
+    global_pool = {}
+    for other in source["groups"]:
+        for candidate in other.get("candidates", []):
+            aid = candidate.get("anidb_id")
+            if aid and candidate.get("title"):
+                global_pool[int(aid)] = candidate
+    out = {"version":2, "source_total_files_at_scan": source.get("total_files_at_scan",source.get("source_total_files_at_scan")), "source_unrecognized_at_scan": source.get("total_unrecognized_at_scan",source.get("source_unrecognized_at_scan")),
            "groups":[], "mode":"offline_reanalysis", "catalog_used":bool(catalog)}
     for original in source["groups"]:
         folder=original["folder"]
@@ -162,6 +170,12 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
                                "source":c.get("source", "v1_shoko_search"),
                                "Titles":c.get("Titles",[]),"aliases":c.get("aliases",[]),
                                "year":c.get("year"),"episodes":c.get("episodes")})
+        own_ids={int(c["anidb_id"]) for c in candidates if c.get("anidb_id")}
+        for aid,c in global_pool.items():
+            if aid in own_ids:continue
+            if any(similarity(q,c.get("title") or "") > 0.64 for q in guesses):
+                candidates.append({"anidb_id":aid,"title":c["title"],"type":c.get("type","Unknown"),
+                                   "source":"cross_group_shoko_candidate"})
         if catalog:
             for query in guesses:
                 candidates.extend(catalog.lookup(query))
@@ -217,7 +231,8 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
 
 def prepare(api: ShokoAPI, overrides: dict, catalog=None, aggressive=False):
     files=api.unrecognized()
-    raw={"version":1,"total_unrecognized_at_scan":len(files),"groups":[]}
+    raw={"version":1,"total_files_at_scan":sum(1 for _ in api.pages("/File")),
+         "total_unrecognized_at_scan":len(files),"groups":[]}
     search_cache={}
     for folder,media in sorted(group_unrecognized(files).items()):
         group=_group_from_raw(folder,media)
@@ -239,11 +254,20 @@ def prepare(api: ShokoAPI, overrides: dict, catalog=None, aggressive=False):
 
 def metrics(plan):
     total=sum(len(g.get("files",[])) for g in plan["groups"])
-    auto=sum(1 for g in plan["groups"] for f in g["files"] if f.get("target_anidb_id") and f.get("episode") and f["mode"] not in ("review","episode_review","extra"))
+    potential=sum(1 for g in plan["groups"] for f in g["files"]
+                  if f.get("target_anidb_id") and f.get("episode")
+                  and f["mode"] not in ("review","episode_review","extra"))
     extras=sum(1 for g in plan["groups"] for f in g["files"] if f.get("mode")=="extra")
-    return {"total_unrecognized_in_plan":total,"potential_links_before_api_validation":auto,
-        "deferred":total-auto,"extras_not_counted_as_recognized":extras,
-        "predicted_remaining_unknown_percent_of_original_total":None}
+    all_files=plan.get("source_total_files_at_scan")
+    remaining=total-potential
+    target=int(all_files*0.05) if all_files else None
+    return {"total_unrecognized_in_plan":total,"potential_links_before_api_validation":potential,
+        "deferred":remaining,"extras_not_counted_as_recognized":extras,
+        "projected_unknown_percent_if_all_submitted_links_succeed":
+            round(100*remaining/all_files,2) if all_files else None,
+        "max_unknown_files_for_5pct_target":target,
+        "additional_verified_links_needed_after_this_plan":
+            max(0,remaining-target) if target is not None else None}
 
 
 def _series_id_from_api(value):
@@ -349,6 +373,7 @@ def main(argv=None):
     parser.add_argument("--url",default=os.getenv("SHOKO_URL","http://127.0.0.1:8111"))
     parser.add_argument("--plan",default="shoko-plan-v2.json")
     parser.add_argument("--analyze-plan",help="OFFLINE: read a previous v1/v2 plan and upgrade its matching")
+    parser.add_argument("--total-files",type=int,help="Full Shoko file count for offline target calculations")
     parser.add_argument("--catalog",help="Optional local anime-offline-database.jsonl crosswalk file")
     parser.add_argument("--overrides",help="User-approved JSON {groups:{folder:anidb_id},files:{file_id:{anidb_id,episode,type}}}")
     parser.add_argument("--aggressive",action="store_true",help="Use broader title candidate threshold (auditable; not guaranteed 90%% accurate)")
@@ -366,6 +391,9 @@ def main(argv=None):
         with open(args.overrides,encoding="utf8") as fh:overrides=json.load(fh)
     if args.analyze_plan:
         with open(args.analyze_plan,encoding="utf8") as fh:source=json.load(fh)
+        if args.total_files:
+            if args.total_files<1:parser.error("--total-files must be positive")
+            source["total_files_at_scan"]=args.total_files
         report=analyze_report(source,catalog=catalog,overrides=overrides,aggressive=args.aggressive)
         _write_private_json(args.plan,report)
         print(json.dumps(report["metrics"],indent=2))
