@@ -1,4 +1,7 @@
-# MVP v0.1 deployment on Proxmox VE 9 (Ukraine)
+# Alternative deployment: Docker Compose + Proxmox VM
+
+> **Not the owner's current deployment plan.** The current target is an existing single Debian 13 **LXC 1510**, running Jellyfin, Shoko and Tethys natively as systemd services, using existing **remote private-LAN PostgreSQL**. Follow [Native LXC deployment](NATIVE_LXC.md) instead. This document is preserved for optional containerized deployment.
+
 
 **Status:** the MVP v0.1 source code is now committed in this repository. It has passed local unit tests, but integration with the owner's real Proxmox/Jellyfin/Shoko systems remains unverified.
 
