@@ -225,8 +225,8 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
         out["groups"].append({"folder":folder,"title_guess":clean_release_title(folder),
             "queries":guesses,"selected_anidb_id":selected,"mode":mode,"reason":reason,
             "candidates":ranked,"count":len(rows),"files":rows})
-    out["metrics"] = metrics(out)
-    return out
+    from refinements import refine
+    return refine(out, catalog=catalog)
 
 
 def prepare(api: ShokoAPI, overrides: dict, catalog=None, aggressive=False):
@@ -287,7 +287,7 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None):
     should_stop=False
     for group in plan["groups"]:
         for row in group["files"]:
-            if limit is not None and done+failed>=limit:
+            if limit is not None and done+failed+pending>=limit:
                 should_stop=True;break
             aid=row.get("target_anidb_id")
             ep=row.get("episode")
@@ -380,7 +380,7 @@ def main(argv=None):
     parser.add_argument("--status",action="store_true")
     parser.add_argument("--apply",action="store_true")
     parser.add_argument("--confirm",help="Must be LINK for writes")
-    parser.add_argument("--limit",type=int)
+    parser.add_argument("--limit",type=int,help="Limit eligible files attempted, including waiting-for-refresh files")
     parser.add_argument("--journal",help="Path to private write-attempt audit log")
     parser.add_argument("--export-metadata",metavar="DIR",help="Save actual per-episode AniDB/TMDB data locally; no MKV writes")
     args=parser.parse_args(argv)
@@ -394,7 +394,13 @@ def main(argv=None):
         if args.total_files:
             if args.total_files<1:parser.error("--total-files must be positive")
             source["total_files_at_scan"]=args.total_files
-        report=analyze_report(source,catalog=catalog,overrides=overrides,aggressive=args.aggressive)
+        if source.get("version") == 2 and not overrides:
+            # v2 plans already contain file-level evidence and user decisions.
+            # Rebuilding from their top-10 display candidates would discard data.
+            from refinements import refine
+            report = refine(source, catalog=catalog)
+        else:
+            report=analyze_report(source,catalog=catalog,overrides=overrides,aggressive=args.aggressive)
         _write_private_json(args.plan,report)
         print(json.dumps(report["metrics"],indent=2))
         print(f"Offline reanalysis written: {args.plan}; no Shoko changes")

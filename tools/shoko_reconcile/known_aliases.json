@@ -1,0 +1,134 @@
+[
+  {
+    "title": "Chichi wa Eiyuu, Haha wa Seirei, Musume no Watashi wa Tenseisha.",
+    "anidb_id": 18437,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Chichi wa Eiyuu"
+    ],
+    "source": "https://www.wikidata.org/wiki/Q124329533"
+  },
+  {
+    "title": "Dark Summoner to Dekiteiru",
+    "anidb_id": 19908,
+    "type": "ONA",
+    "episodes": 12,
+    "aliases": [
+      "Dark Summoner to Dekiteiru"
+    ],
+    "source": "anime-offline-database: exact title and 2026 match"
+  },
+  {
+    "title": "Go-Toubun no Hanayome",
+    "anidb_id": 14247,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Go-toubun no Hanayome"
+    ],
+    "source": "Shoko v2 candidate: exact base TV anime"
+  },
+  {
+    "title": "Kanojo, Okarishimasu 2nd Season",
+    "anidb_id": 15743,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Kanojo Okarishimasu 2nd Season"
+    ],
+    "source": "Shoko v2 catalog candidate: distinct season 2"
+  },
+  {
+    "title": "Seijo no Maryoku wa Bannou Desu II",
+    "anidb_id": 17246,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Seijo no Maryoku wa Bannou Desu 2nd Season"
+    ],
+    "source": "Shoko v2 candidate: named sequel II"
+  },
+  {
+    "title": "Sono Bisque Doll wa Koi wo Suru Season 2",
+    "anidb_id": 17630,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Sono Bisque Doll wa Koi o Suru Season 2"
+    ],
+    "source": "Shoko v2 catalog candidate: season 2"
+  },
+  {
+    "title": "Mahou Shoujo Lyrical Nanoha EXCEEDS: Gun Blaze Vengeance",
+    "anidb_id": 19080,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Mahou Shoujo Lyrical Nanoha EXCEEDS Gun Blaze Vengeance (Magical Girl Lyrical NANOHA) Season 01"
+    ],
+    "source": "Shoko v2 catalog candidate; https://anilist.co/anime/185875"
+  },
+  {
+    "title": "Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season Part 2",
+    "anidb_id": 15593,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Re.Zero kara Hajimeru Isekai Seikatsu Season 2 Part 2"
+    ],
+    "source": "Shoko v2 candidate: Part 2, 12 episodes"
+  },
+  {
+    "title": "Tensura Nikki: Tensei shitara Slime Datta Ken",
+    "anidb_id": 15457,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Коли я переродився слизом - Щоденниик слизу",
+      "Коли я переродився слизом - Щоденник слизу"
+    ],
+    "source": "Shoko v2 related-work candidate: Slime Diaries"
+  },
+  {
+    "title": "Tensei shitara Slime Datta Ken",
+    "anidb_id": 13871,
+    "type": "TV",
+    "episodes": 24,
+    "aliases": [
+      "Про моє переродження в слиз"
+    ],
+    "source": "Shoko v2 related-work candidate; https://junban.moe/series/3808-that-time-i-got-reincarnated-as-a-slime"
+  },
+  {
+    "title": "Tensei Shitara Slime Datta Ken: Coleus no Yume",
+    "anidb_id": 17873,
+    "type": "ONA",
+    "episodes": 3,
+    "aliases": [
+      "Про моє переродження в слиз - Королівство Колеус"
+    ],
+    "source": "https://www.wikidata.org/wiki/Q118278829"
+  },
+  {
+    "title": "Tensei Shitara Slime Datta Ken Movie: Guren no Kizuna-hen",
+    "anidb_id": 16776,
+    "type": "Movie",
+    "episodes": 1,
+    "aliases": [
+      "Про моє перероження в слиз - зв'язок Червоного Лотоса",
+      "Про моє переродження в слиз - зв'язок Червоного Лотоса"
+    ],
+    "source": "https://www.wikidata.org/wiki/Q115626785"
+  },
+  {
+    "title": "No Game No Life Zero",
+    "anidb_id": 12276,
+    "type": "Movie",
+    "episodes": 1,
+    "aliases": [
+      "No Game No Life - Zero"
+    ],
+    "source": "Shoko v2 exact-title candidate and known theatrical film"
+  }
+]

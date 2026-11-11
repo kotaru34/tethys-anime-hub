@@ -105,3 +105,46 @@ No new media copies and no rehash needed. The normal Shoko/Jellyfin services con
 - [Shoko 5.3.3 series/episode APIs](https://github.com/ShokoAnime/ShokoServer/blob/v5.3.3/Shoko.Server/API/v3/Controllers/SeriesController.cs)
 - [Shoko 5.3.3 episode-type parser](https://github.com/ShokoAnime/ShokoServer/blob/v5.3.3/Shoko.Server/API/v3/Helpers/ModelHelper.cs)
 - [Offline cross-provider database and licensing](https://github.com/cedya77/anime-offline-database)
+
+## v2.2 – Public crosswalk, series/cour recovery and Shoko episode typing
+
+**Measured on the owner's uploaded v2 plan (2026-11-11), no Shoko writes:**
+`1,038` unknown of `1,167` total; v2.1 with cached catalog proposed `851` links. The v2.2 refinements produce **981 potential links**, leaving **57/1,167 = 4.88%** *if every mapped row passes live Shoko validation*. This projection is NOT an achieved unrecognized percentage, nor a demonstrated <10% match-error rate. **Only one failed link would put the forecast on the edge of the 5% threshold**. The real `--status`, episode-metadata availability, curated corrections and accuracy audit remain mandatory.
+
+- `known_aliases.json` is a documented, versioned public anime-title ↔ AniDB ID crosswalk; it resolves short names, localized Ukrainian releases and known AniDB sequel IDs **without falsely claiming an AniDB File ID or modifying MKV**. The IDs have sources and may be overridden. Generic fuzzy matching remains distinct from title crosswalk evidence.
+- Exact series identity matters: *Go-Toubun* first season vs `∽`, `∬` and `*`; sequel titles and movie/OVA formats are kept separate. No silent S1-for-S2 mapping.
+- Full season downloads covering multiple AniDB works are partitioned **per file**, e.g. S02 E01–E12 → first cour and E13–E24 → second cour E01–E12 when the second AniDB work and its episode count are evidenced. Recaps (`24.5`), unknown E00, OP/ED and trailers are not fabricated as episodes.
+- An individual AniDB **OVA/ONA work** uses ordinary E01–E## episodes; `S##` identifies specials within another work. This is essential for Shoko's link endpoint.
+- The downloaded `anime-offline-database.jsonl` is still used for **independently named nested works**, e.g. `Youjo Senki/Youjo Shenki/`: a chibi spin-off has its own AniDB identity, not the containing parent TV series. Files with no verified crosswalk are deferred.
+- `--limit` caps not only submitted API links but also files pending series metadata refresh, preventing a ten-file trial from queuing the entire library.
+
+### Convert your existing v2 plan, without re-scanning anything
+
+Run in the Shoko LXC after updating the repository:
+
+```bash
+cd /opt/tethys-anime-hub
+ git pull --ff-only
+cd tools/shoko_reconcile
+
+# Uses the existing local crosswalk you already downloaded during v2.1.
+python3 shoko_reconcile.py \
+  --analyze-plan /root/shoko-plan-v2.json \
+  --total-files 1167 \
+  --catalog /var/cache/tethys/anime-offline-database.jsonl \
+  --plan /root/shoko-plan-v2.2.json
+```
+
+**The output is an offline forecast only.** The new plan is version 2 (v2.2 enhancements are recorded in `refinements`), and is compatible with the existing v2 Shoko API link operation.
+
+Before any large write, validate a small live sample, including at least a sequel, an OVA/ONA, and a localized title:
+
+```bash
+read -rsp 'Shoko admin API key: ' SHOKO_API_KEY; echo
+export SHOKO_API_KEY
+python3 shoko_reconcile.py --apply --plan /root/shoko-plan-v2.2.json \
+  --confirm LINK --limit 10 --journal /root/shoko-apply-v2.2.json
+python3 shoko_reconcile.py --status
+```
+
+If Shoko queues metadata fetching, let its jobs settle and rerun. Verify the sample file-to-episode links visually in Shoko before an unbounded `--apply`. **No 5% or 10% claim can be made without these host-side results.** Never commit the user's private plan, inventory, API key, or snapshots.
