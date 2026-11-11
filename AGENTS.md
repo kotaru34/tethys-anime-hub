@@ -58,3 +58,9 @@ GitHub started empty; product/design docs were committed first, and the earlier 
 - **Known critical incident:** Shoko 5.3.3 watcher recursion, stack WatcherOnError→Start, led to Save hang and after restart stuck at "Initializing File Watchers". SQLite `ImportFolder.IsWatched=0` (after backup and stopping Shoko) recovered it. Fresh import folder: Drop Type None, **Watch For New Files OFF**, until root cause isolated.
 - Instant discoveries remain required: torrent client **completion event** or writer-side hook → authenticated Shoko API scan; do not rely on NFS inotify or six-hour polling. Even storage-local watchers may miss remote NFS clients' writes.
 - docs/NATIVE_LXC.md and docs/DEPLOY.md describe **superseded alternatives**; don't use as current runbook.
+
+## Shoko 5.3.3 unrecognized bulk-recovery (2026-11-11)
+- Owner verified 110 recognized / 1057 unrecognized files, with AniDB UDP `320 NO SUCH FILE` on HEVC fansub releases. This is an **identity strategy defect** (hash-only dependency), not UDP transport failure. Preserve Shoko; do not propose replacing it without owner's instruction.
+- A conservative standard-library tool is now committed at `tools/shoko_reconcile/shoko_reconcile.py` (+ README and tests). Uses Shoko 5.3.3 API `/File`, `/Series/AniDB/Search`, `/Series/AniDB/{id}/Refresh`, `/File/{id}/LinkFromSeries`, enabling manual-link semantics automatically by release-folder and episode without changing originals. Start with dry-run report.
+- Official Shoko OfflineImporter plugin is .NET 10 / Shoko 6 and **not compatible** with 5.3.3; never recommend installing it directly in current LXC.
+- **Goal: <=5% unknown based on actual host coverage and correctness**, not by ignoring/mislinking files. This target is NOT yet demonstrated. See issue #undefined.
