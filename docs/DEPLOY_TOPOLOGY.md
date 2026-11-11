@@ -54,3 +54,27 @@ Source inspection confirms Shoko 5.3.3 `FileWatcherService` only starts watchers
 The owner intends to **rewind the conversation to the first deployment-planning request after the last code commit** to save context, and re-create LXCs cleanly. **This document is newer and overrides any older topology suggested by the rewound chat**. In the next deployment conversation: read this document and AGENTS.md; do not advocate the old all-in-one LXC, Docker Compose, or a new backend VM by default.
 
 This is a deployment **decision**, not a claim that the new LXCs, Shoko/Jellyfin link, or event hook are already installed or tested.
+
+
+## Preflight verified on both hosts (2026-11-11, second clean-install attempt)
+
+The following is **observed output, not an assertion that containers are installed**. Treat earlier allocation numbers as provisional.
+
+| | Storage Proxmox | Laptop Proxmox |
+|---|---|---|
+| Host | `mainserver`, PVE 9.1.9 | `ai-server`, PVE 9.2.11 |
+| CPU | Xeon E5-1620 v2, 4 cores/8 threads | i5-9300H, 4 cores/8 threads |
+| Memory | 62 GiB total, 14 GiB available, ~9.9 GiB swap used | 31 GiB total, 9 GiB available, near-zero swap |
+| GPU | None required for Shoko | Intel UHD 630 at `/dev/dri/renderD128`, kernel `i915`; GTX 1650 `vfio-pci`, do not touch |
+| Anime | `/mnt/neko/Anime` on local `/dev/mapper/nvme-neko` ext4, 5.8 TiB filesystem (1.7 TiB used) | Already mounted `10.169.6.200:/mnt/neko` at `/mnt/neko` via NFSv4.2, `nconnect=8`; use subdir `Anime` |
+| Media directory | UID/GID 3000:3000, mode 2770, parent `/mnt/neko` also 2770 | Must implement and test explicit GID 3000 mapping and primary service group |
+| Root storage | `local` only ~27.6 GiB free, `local-lvm` disabled, `tsuki` directory storage ~569 GiB free; **verify physical device and `rootdir` content before choosing** | `local-lvm` thinpool ~292 GiB free, suitable for LXC root |
+| Existing relevant CTs | `2600 Tethys-Vault` already running, don't reuse its ID | `1500 Tethys-Anime-Hub` exists but stopped; **do not delete/overwrite automatically** |
+
+**Provisioning proposal, adjust after verification:** Shoko new unprivileged Debian 13 LXC: 4 visible cores with optional `cpulimit=2` if existing workload needs protection, 4 GiB RAM, 512 MiB swap, 32–48 GiB state/root on suitable local SSD. Laptop Jellyfin/Shokofin/Tethys unprivileged Debian 13 LXC: 4 cores, 6 GiB RAM, 1 GiB swap, 64 GiB root on `local-lvm`. Limits are maximums, not guaranteed exclusive RAM/CPU reservations. Avoid committing fixed CT IDs/network addresses until checked.
+
+On storage host, before creation: `pvesm config tsuki`, `lsblk -o NAME,TYPE,SIZE,ROTA,TRAN,MOUNTPOINTS`, `findmnt -T /mnt/tsuki` (adjust to actual configured path), `pveam available --section system | grep debian-13`, `ip -br addr` and existing CT network bridge. On laptop: `pvesm config local-lvm`, `pct config 1500` for network reference only, `ip route get 10.169.6.200`, `stat /mnt/neko/Anime` and `pveam available --section system | grep debian-13`.
+
+**Mount contract:** use `pct set CTID -mp0 /mnt/neko/Anime,mp=/Anime,ro=1` on the corresponding host. For unprivileged containers map only the necessary GID 3000 rather than changing file ownership or making the directory world-readable. PVE bind-mounted paths are NOT included in `vzdump`; back up each service state, PostgreSQL and settings separately. Proxmox documentation: https://github.com/proxmox/pve-docs/blob/master/pct.adoc
+
+**Incident controls:** Shoko watcher remains disabled in this plan even though its new media source is storage-local: event-based torrent completion → Shoko import-folder scan is the reliable discovery target. Don't mistake a partially missing NFS mount for an intentionally empty library; Tethys/Jellyfin should treat unavailability as degraded service, not deletions.
