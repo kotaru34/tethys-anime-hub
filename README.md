@@ -13,7 +13,8 @@ Tethys unifies local MKV releases and online metadata with works saved before th
 - [UI/UX: responsive modern design and AMOLED True Black](docs/UI_DESIGN.md)
 - [Data sources, providers and API policies](docs/DATA_SOURCES.md)
 - [PostgreSQL data model and safe migration](docs/DATA_MODEL.md)
-- [MVP deployment on Proxmox VE](docs/DEPLOY.md)
+- [**Current native single-LXC deployment (remote PostgreSQL, no Docker)**](docs/NATIVE_LXC.md)
+- [Alternative older Docker/VM deployment](docs/DEPLOY.md)
 - [Machine-readable anime feature ontology (91 factors)](spec/features.v1.json)
 - [Behavior signal definitions](spec/behavior_signals.v1.json)
 - [Instructions for coding agents and future sessions](AGENTS.md)
@@ -50,6 +51,8 @@ Tethys unifies local MKV releases and online metadata with works saved before th
 **MVP v0.1 source is committed**: FastAPI/Jinja UI, Jellyfin-based indexing, sidecar inventory, AniDB→AniList matching, PostgreSQL, ratings/reviews, Compose and tests. The MVP UI supports a local theme switcher, including AMOLED, and displays detected audio-language episode availability without a forced target locale.
 
 **Design-only / next milestones:** independent canonical Work migration, MAL-only upcoming watchlist, secured playback telemetry ingestion, confidence-aware self-learning recommendation engine, visual embeddings, and generated editable Taste Profile. The code is **not yet validated on the owner's Proxmox hosts**. Do not claim those future capabilities are implemented.
+
+**Current installation preference:** unprivileged Debian 13 LXC 1510 with native systemd services; PostgreSQL already exists on the private LAN. See [NATIVE_LXC.md](docs/NATIVE_LXC.md). Docker Compose is an *alternative*, not a requirement.
 
 See [GitHub Issues](https://github.com/kotaru34/tethys-anime-hub/issues) for milestones. Develop in small, reproducible, tested changes; retain Shoko/Jellyfin independently owned databases and backup them separately.
 
