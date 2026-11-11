@@ -49,3 +49,9 @@ GitHub started empty; product/design docs were committed first, and the earlier 
 - Never assume Ukrainian or any other audio language. Capture every media track; per-user preferences optional, not hardcoded defaults.
 - Passive Jellyfin playback signals are **weak, noisy, opt-in evidence**. Repeated patterns across independent anime can contribute despite zero manual ratings; no automatic negative rating from infrequent watching. Session reconstruction, opportunity, autoplay and malfunction checks required. Refer to docs/BEHAVIORAL_LEARNING.md.
 - Show an editable, evidence-based, natural-language **Taste Profile** per account. Local Qwen is only a constrained summarizer of structured claims; no invented reasons for viewing behavior. See docs/PREFERENCE_PROFILE.md.
+
+## Current deployment decision (2026-11-11)
+- The owner chose **single unprivileged Debian 13 LXC 1510**, with native systemd services for Jellyfin, Shoko and Tethys; **no Docker, new VM or new PostgreSQL server**. Existing remote private-LAN PostgreSQL is for Tethys only. See docs/NATIVE_LXC.md. Keep Compose as optional alternative.
+- NFS /Anime is read-only, group GID 3000. Primary GID 3000 works on the host and LXC but supplementary GID 3000 does not suffice in this NFS setup. Run Jellyfin, Shoko and Tethys worker with primary group anime (GID 3000) and separate private credential groups to prevent secret leakage.
+- Native Shoko 5.3.3 uses .NET 8, mediainfo/librhash, separate own database in its service home; verify at runtime. Shokofin 6.0.5 in Jellyfin 10.11.11; own PostgreSQL is not Shoko DB.
+- docs/DEPLOY.md is the older optional Docker/VM route, not the present runbook. Add native deployment tests and maintain this guide upon real integration.
