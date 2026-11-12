@@ -25,6 +25,8 @@ jobs:
         run: python -m compileall -q app tests
       - name: Test
         run: python -m pytest -q
+      - name: Test Shoko reconciler and automatic fallback
+        run: python -m unittest discover -s tools/shoko_reconcile/tests -p 'test_*.py' -v
       - name: Validate ontology schemas as JSON
         run: |
           python - <<'PY'

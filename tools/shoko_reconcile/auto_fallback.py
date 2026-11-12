@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""Conservative, opt-in automatic fallback for Shoko 5.3.3.
+
+Runs after Shoko's own hash/AniDB processing, not instead of it. Never writes
+to /Anime, never applies a historical plan and never fabricates AniDB File IDs.
+Ambiguous matches remain Unrecognized for manual review.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path, PurePosixPath
+import sys
+import time
+
+from catalog import AliasCatalog
+from shoko_reconcile import ShokoAPI, _write_private_json, apply, prepare
+
+
+def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
+    """Return IDs still unknown with unchanged filesystem identity over time."""
+    root = Path(media_root).resolve()
+    current = {}
+    eligible = set()
+    for record in files:
+        fid = int(record["ID"])
+        locs = record.get("Locations") or []
+        if not locs:
+            continue
+        rel = str(locs[0].get("RelativePath") or "")
+        pure = PurePosixPath(rel)
+        if not rel or pure.is_absolute() or ".." in pure.parts:
+            continue
+        try:
+            full = (root / rel).resolve(strict=True)
+            if not full.is_relative_to(root) or not full.is_file():
+                continue
+            st = full.stat()
+        except (OSError, RuntimeError):
+            continue
+        if st.st_size <= 0:
+            continue
+        previous = old_state.get(str(fid), {})
+        fingerprint = {"path": rel, "size": st.st_size, "mtime_ns": st.st_mtime_ns}
+        same = all(previous.get(k) == v for k, v in fingerprint.items())
+        first_seen = float(previous.get("first_seen", now)) if same else now
+        current[str(fid)] = {**fingerprint, "first_seen": first_seen}
+        if same and now - first_seen >= minimum_age and now - st.st_mtime >= minimum_age:
+            eligible.add(fid)
+    return current, eligible
+
+
+def is_safe_automatic_link(group, row):
+    """Approve only well-evidenced work identity; episode checked again by apply()."""
+    mode = row.get("mode")
+    if mode not in {"public_crosswalk", "prior_exact_title", "nested_exact_work",
+                    "auto_evidence"}:
+        return False
+    if row.get("episode_type") not in {"Episode", "Special", "Movie"}:
+        return False
+    aid, ep = row.get("target_anidb_id"), row.get("episode")
+    if not isinstance(aid, int) or not isinstance(ep, int) or ep <= 0:
+        return False
+    # No automatic interpretation of shifted/recap episode numbers.
+    src = row.get("source_episode")
+    if src is not None and src != ep:
+        return False
+    # Automatic title fuzzy guesses require independent review.
+    if mode == "auto_evidence":
+        candidates = group.get("candidates") or []
+        selected = [c for c in candidates if c.get("anidb_id") == aid]
+        if not selected:
+            return False
+        chosen = selected[0]
+        score = float(chosen.get("score") or 0)
+        if score < 0.98:
+            return False
+        if any(float(c.get("score") or 0) >= score - 0.18
+               for c in candidates if c.get("anidb_id") != aid):
+            return False
+    return True
+
+
+def keep_safe_rows(plan, eligible):
+    """Make a new private plan containing only eligible safe rows."""
+    groups = []
+    reviewed = 0
+    for group in plan["groups"]:
+        safe = []
+        for row in group.get("files", []):
+            if int(row["file_id"]) not in eligible:
+                continue
+            if is_safe_automatic_link(group, row):
+                safe.append(row)
+            else:
+                reviewed += 1
+        if safe:
+            groups.append({**group, "files": safe, "count": len(safe)})
+    return {**plan, "groups": groups}, reviewed
+
+
+def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
+        minimum_age=900, now=None, do_apply=False):
+    now = time.time() if now is None else now
+    root = Path(media_root)
+    if not root.is_dir() or not os.path.ismount(root):
+        raise RuntimeError(f"Refusing to reconcile: {root} is not a mounted media directory")
+    state_file = Path(state_path)
+    old_state = json.loads(state_file.read_text()) if state_file.is_file() else {}
+    unknown = api.unrecognized()
+    current, eligible = stable_unknowns(
+        unknown, old_state, now=now, media_root=root, minimum_age=minimum_age)
+    _write_private_json(state_file, current)
+    summary = {"currently_unrecognized": len(unknown),
+               "mature_stable_unknown": len(eligible), "approved_for_auto": 0,
+               "needs_review": 0, "submitted": 0}
+    if not eligible:
+        return summary
+    plan = prepare(api, overrides={}, catalog=catalog, aggressive=False)
+    safe_plan, rejected = keep_safe_rows(plan, eligible)
+    summary["approved_for_auto"] = sum(len(g["files"]) for g in safe_plan["groups"])
+    summary["needs_review"] = rejected
+    if summary["approved_for_auto"]:
+        _write_private_json(plan_path, safe_plan)
+        if do_apply:
+            result = apply(api, safe_plan, journal=str(Path(plan_path).with_suffix(".journal.json")))
+            summary.update({"submitted": result["submitted"], "errors": result["errors"],
+                            "awaiting_series_refresh": result["awaiting_series_refresh"],
+                            "deferred": result["deferred"]})
+    return summary
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--url", default=os.getenv("SHOKO_URL", "http://127.0.0.1:8111"))
+    parser.add_argument("--catalog")
+    parser.add_argument("--media-root", default="/Anime")
+    parser.add_argument("--state", default="/var/lib/shoko-reconcile/seen.json")
+    parser.add_argument("--plan", default="/var/lib/shoko-reconcile/auto-plan.json")
+    parser.add_argument("--minimum-age", type=int, default=900, metavar="SECONDS")
+    parser.add_argument("--apply", action="store_true", help="Submit safe links, otherwise dry-run")
+    parser.add_argument("--confirm", help="Must equal LINK for --apply")
+    args = parser.parse_args(argv)
+    if args.minimum_age < 60:
+        parser.error("--minimum-age must be at least 60 seconds")
+    if args.apply and args.confirm != "LINK":
+        parser.error("--apply requires --confirm LINK")
+    key = os.getenv("SHOKO_API_KEY")
+    if not key:
+        parser.error("SHOKO_API_KEY is missing")
+    catalog = AliasCatalog(args.catalog) if args.catalog else None
+    result = run(
+        ShokoAPI(args.url, key),
+        state_path=args.state, plan_path=args.plan,
+        media_root=args.media_root, catalog=catalog,
+        minimum_age=args.minimum_age, do_apply=args.apply)
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()
