@@ -44,7 +44,7 @@ One-shot `auto_fallback.py` on **Shoko CT** checks only current `Unrecognized` A
 In Shoko CT:
 ```sh
 install -d -o shoko -g anime -m 0700 /var/lib/shoko-reconcile
-# /etc/shoko-reconcile.env is read by systemd, owned root:shoko and mode 0640:
+# /etc/shoko-reconcile.env is read by systemd, owned root:anime and mode 0640:
 # SHOKO_API_KEY=<PRIVATE_KEY>
 # SHOKO_URL=http://127.0.0.1:8111
 ```
