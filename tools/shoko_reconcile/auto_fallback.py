@@ -100,6 +100,17 @@ def keep_safe_rows(plan, eligible):
     return {**plan, "groups": groups}, reviewed
 
 
+def queue_is_busy(api):
+    """Wait until ordinary Shoko jobs finish before fallback manual linking."""
+    queue = api.request("GET", "/Queue")
+    if not isinstance(queue, dict):
+        raise RuntimeError("Shoko /Queue did not return expected status")
+    return (int(queue.get("TotalCount") or 0) > 0
+            or int(queue.get("WaitingCount") or 0) > 0
+            or int(queue.get("BlockedCount") or 0) > 0
+            or bool(queue.get("CurrentlyExecuting")))
+
+
 def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
         minimum_age=900, now=None, do_apply=False):
     now = time.time() if now is None else now
@@ -116,6 +127,9 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
                "mature_stable_unknown": len(eligible), "approved_for_auto": 0,
                "needs_review": 0, "submitted": 0}
     if not eligible:
+        return summary
+    if queue_is_busy(api):
+        summary["shoko_queue_busy"] = True
         return summary
     plan = prepare(api, overrides={}, catalog=catalog, aggressive=False)
     safe_plan, rejected = keep_safe_rows(plan, eligible)

@@ -22,7 +22,7 @@ export SHOKO_API_KEY='YOUR_PRIVATE_KEY'
 curl -fsS -H "apikey: $SHOKO_API_KEY" http://127.0.0.1:8111/api/v3/ImportFolder | python3 -m json.tool
 ```
 
-Find the existing import-folder ID for `/Anime` from the response; replace `<IMPORT_ID>` below. The authenticated **GET** `/api/v3/ImportFolder/{id}/Scan` queues a scan; verify it once from Shoko CT.
+Shoko 5.3.3 has an optimized authenticated **GET** `/api/v3/Action/ImportNewFiles` that queues detection of only new files. Unlike `/ImportFolder/{id}/Scan`, it does not rescan every file. Verify it once from Shoko CT.
 
 Configure qBittorrent `Options → Downloads → Run external program on torrent completion` to call a local executable script in the torrent CT. Example `/usr/local/bin/notify-shoko.sh` (Shoko key stored in a readable-to-client-user-only local file at `/etc/torrenya/shoko-api-key`):
 
@@ -32,14 +32,14 @@ set -eu
 KEY=$(cat /etc/torrenya/shoko-api-key)
 curl --fail --silent --show-error --retry 3 --connect-timeout 4 \
   -H "apikey: $KEY" \
-  "http://10.169.2.151:8111/api/v3/ImportFolder/<IMPORT_ID>/Scan" >/dev/null
+  "http://10.169.2.151:8111/api/v3/Action/ImportNewFiles" >/dev/null
 ```
 
-External program field: `/usr/local/bin/notify-shoko.sh`. Adapt the completion hook if the downloader is not qBittorrent. Limit access to the Shoko API port to your trusted private LAN. A successful call means scan was requested, **not** that ED2K/AniDB jobs have already finished. Optional slow periodic import-folder scan is a recovery for missed completion events. Do not run two scans per file or scan half-written files.
+External program field: `/usr/local/bin/notify-shoko.sh`. Adapt the completion hook if the downloader is not qBittorrent. Limit access to the Shoko API port to your trusted private LAN. A successful call means discovery was requested, **not** that ED2K/AniDB jobs have already finished. Optional slow periodic import-folder scan is a recovery for missed completion events. Do not run two scans per file or scan half-written files.
 
 ## Conservative fallback after Shoko failed
 
-One-shot `auto_fallback.py` on **Shoko CT** checks only current `Unrecognized` API records. On first observation it records file path, size, mtime and first-seen time. On later runs, after at least 15 minutes with unchanged file state, it prepares a **new** plan, restricts links to strong independent identity evidence (curated public crosswalk, verified exact title, or unambiguous high-score Shoko candidate), and lets the existing `apply()` re-check live File ID/path/AniDB ID/episode type+number. Ambiguous franchises, specials and shifted episode numbers remain for review. No forced false links for achieving 100%.
+One-shot `auto_fallback.py` on **Shoko CT** checks only current `Unrecognized` API records. On first observation it records file path, size, mtime and first-seen time. On later runs, after at least 15 minutes with unchanged file state **and an idle Shoko job queue**, it prepares a **new** plan, restricts links to strong independent identity evidence (curated public crosswalk, verified exact title, or unambiguous high-score Shoko candidate), and lets the existing `apply()` re-check live File ID/path/AniDB ID/episode type+number. Ambiguous franchises, specials and shifted episode numbers remain for review. No forced false links for achieving 100%.
 
 In Shoko CT:
 ```sh
