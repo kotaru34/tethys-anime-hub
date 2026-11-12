@@ -52,8 +52,11 @@ class CuratedTests(unittest.TestCase):
         ]
 
     def run_quiet(self, *args, **kwargs):
-        with contextlib.redirect_stdout(io.StringIO()):
-            return run(*args, **kwargs)
+        # Keep CI and local tests independent of the production /root journal.
+        with tempfile.TemporaryDirectory() as directory:
+            kwargs.setdefault('journal', str(Path(directory) / 'audit.json'))
+            with contextlib.redirect_stdout(io.StringIO()):
+                return run(*args, **kwargs)
 
     def test_read_only_default(self):
         result = self.run_quiet(self.api, self.rows)
