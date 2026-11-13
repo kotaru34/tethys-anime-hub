@@ -73,7 +73,7 @@ class ReportTests(unittest.TestCase):
         f=fixture("OSHI NO KO 3 - AniLiberty [WEB-DL 1080p]",["OSHI_NO_KO_3_[01].mkv"],
                   candidates=[(18901,'"Oshi no Ko" (2026)',1.0),(17449,'"Oshi no Ko"',.91)],aid=18901,mode="exact_title")
         a=analyze_report(f)
-        self.assertEqual(a["groups"][0]["files"][0]["target_anidb_id"],18901)
+        self.assertEqual(a["groups"][0]["files"][0]["target_anidb_id"],18901, msg=repr(a["groups"][0]))
 
     def test_no_pretense_of_recognizing_extras(self):
         f=fixture("Takt Op. Destiny",["Takt_Op_Destiny_[01].mkv","Takt_Op_Destiny_[02].mkv"],
