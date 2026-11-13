@@ -397,10 +397,31 @@ def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str =
         candidate_y=c.get("year") or year_hint(title)
         if hint_s and not candidate_s:
             stripped_year=re.sub(r"\s*\((?:19|20)\d{2}\)\s*$","",title)
-            if candidate_y and similarity(query_base,stripped_year)>=0.87:
+            if (candidate_y and similarity(query_base,stripped_year)>=0.87
+                    and (hint_s > 1 or
+                         (hint_y is not None and int(hint_y) == int(candidate_y)))):
+                # A dated candidate is not necessarily S01 just because it is
+                # the only dated candidate found. Require matching source year
+                # for S01; retain cross-work chronology inference for sequels.
                 candidate_s=year_season.get(int(candidate_y))
             elif not candidate_y and match_key(stripped_year)==match_key(query_base):
                 candidate_s=1
+        # Release-pack S01 / Season 1 is often an *uploader's* label,
+        # while AniDB's first work has no explicit 'season' field. Accept
+        # a first-season inference only from an EXACT full-title/alias match,
+        # with no conflicting known year. This avoids penalizing an exact
+        # S01 match to 0.82 while never promoting unknown S02 sequels.
+        if hint_s == 1 and candidate_s is None:
+            exact_full_title = any(
+                match_key(q) == match_key(alias)
+                for q in queries for alias in aliases if alias
+            )
+            if exact_full_title and (
+                not candidate_y or (
+                    hint_y is not None and int(hint_y) == int(candidate_y)
+                )
+            ):
+                candidate_s = 1
         # A known explicit season disagreement is a hard rejection.
         if hint_s and candidate_s and hint_s!=candidate_s:continue
         if hint_s and hint_s > 1 and candidate_s is None:continue
