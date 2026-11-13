@@ -178,3 +178,33 @@ python3 shoko_reconcile.py \
 ```
 
 **Important:** the archived `--analyze-plan` path rechecks historical decisions, not actual present-day Shoko state, and can correctly defer previously optimistic links. Compare the proposed mappings **by file ID and AniDB identity**, not solely the total count of potential links. If the library has zero Unrecognized files, an ordinary new `--plan` will be empty; exercise the automatic fallback with a later newly ingested release or an isolated API fixture. Leave the event service in dry-run until its live behavior and accuracy are confirmed. Any timestamp-based franchise-season inference is heuristic and must fail closed if necessary evidence is missing.
+
+## qBittorrent completion hook (5-minute debounce)
+
+`notify-shoko.sh` is a replacement for the Torrenya CT 540 completion hook at
+`/usr/local/bin/notify-shoko.sh`. It preserves the existing Shoko 5.3.3
+`GET /api/v3/Action/ImportNewFiles` endpoint and API key
+(`/etc/torrenya/shoko-api-key`). The qBittorrent setting remains **Run external
+program on torrent completion:** `/usr/local/bin/notify-shoko.sh`.
+
+The hook records every completion, returns immediately to qBittorrent and
+coalesces events into **one scan 300 seconds after the latest completion**.
+Another completion resets the timer, even while the worker is already waiting.
+If a torrent completes during the Shoko API call, it schedules another scan
+300 seconds after that new completion. The worker uses an exclusive state lock,
+checks an incrementing event ID before acknowledging work, and retains failed
+requests for retries. No existing media files are touched.
+
+The writable, private state directory must be created **once** as root on
+Torrenya before installing the hook:
+
+```bash
+install -d -o kotaru -g "$(id -gn kotaru)" -m 0700 /var/lib/torrenya/shoko-notify
+install -o root -g root -m 0755 notify-shoko.sh /usr/local/bin/notify-shoko.sh
+```
+
+Keep the already-configured ACL allowing the `kotaru` process to read the
+Shoko API key; do **not** make the key world-readable. Observe requests and
+errors with `tail -f /var/lib/torrenya/shoko-notify/worker.log`. The pending
+state contains `<unix-time> <event-id>`; a zero time indicates no outstanding
+work. No qBittorrent restart or change to its configured hook path is required.
