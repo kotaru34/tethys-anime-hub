@@ -58,7 +58,7 @@ def is_safe_automatic_link(group, row):
         return False
     mode = row.get("mode")
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
-                    "nested_exact_work", "auto_evidence"}:
+                    "nested_exact_work", "auto_evidence", "strong_context"}:
         return False
     # AniDB "Other" is *not* normally safe for auto matching. Allow O01/O02
     # only for an explicit publisher-verified release override.
@@ -76,8 +76,12 @@ def is_safe_automatic_link(group, row):
     # Only explicitly verified release-specific overrides bypass fuzzy matching.
     # Legacy group-level vetoes for all OVAs were removed: they cost 9/981
     # viable files in the original archive, including correctly identified OVA.
-    # Automatic title fuzzy guesses require independent review.
-    if mode == "auto_evidence":
+    # "strong_context" is an independently refined *title* choice, but its
+    # initial 0.91 / 0.075 margins are NOT safe enough for unattended use.
+    # Require exactly the same strict independent score and separation as
+    # "auto_evidence". Candidate scores are ranking evidence, not calibrated
+    # probabilities of a correct match.
+    if mode in {"auto_evidence", "strong_context"}:
         candidates = group.get("candidates") or []
         selected = [c for c in candidates if c.get("anidb_id") == aid]
         if not selected:
@@ -108,6 +112,40 @@ def keep_safe_rows(plan, eligible):
         if safe:
             groups.append({**group, "files": safe, "count": len(safe)})
     return {**plan, "groups": groups}, reviewed
+
+
+def review_diagnostics(plan, eligible, *, max_groups=12):
+    """Explain conservative rejections, without adding speculative links.
+
+    Group names and file paths stay in a private plan on the Shoko host;
+    the journal contains only counts and at most 12 release folder names.
+    """
+    from collections import Counter
+    by_mode = Counter()
+    by_reason = Counter()
+    by_group = Counter()
+    examples = {}
+    for group in plan.get("groups", []):
+        for row in group.get("files", []):
+            if int(row["file_id"]) not in eligible or is_safe_automatic_link(group, row):
+                continue
+            mode = str(row.get("mode") or "unclassified")
+            by_mode[mode] += 1
+            reason = str(row.get("reason") or group.get("reason") or "unclassified")
+            by_reason[reason] += 1
+            folder = str(group.get("folder") or "unknown")
+            by_group[folder] += 1
+            examples.setdefault(folder, {"folder": folder, "group_mode": group.get("mode"),
+                                         "group_reason": group.get("reason")})
+    top = []
+    for folder, count in by_group.most_common(max_groups):
+        top.append({**examples[folder], "files": count})
+    return {
+        "review_by_mode": dict(sorted(by_mode.items())),
+        "review_by_reason": dict(by_reason.most_common(8)),
+        "review_top_groups": top,
+        "review_groups_total": len(by_group),
+    }
 
 
 def queue_is_busy(api):
@@ -142,9 +180,21 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
         summary["shoko_queue_busy"] = True
         return summary
     plan = prepare(api, overrides={}, catalog=catalog, aggressive=False)
+    # Keep a current, read-only-to-operators inspection snapshot even when
+    # *nothing* qualifies for auto-link. This is the critical case when
+    # unknowns exceed the configured quality target.
+    inspection_path = Path(plan_path).with_suffix(".review.json")
+    _write_private_json(inspection_path, plan)
+    summary["review_plan"] = str(inspection_path)
+    total = plan.get("source_total_files_at_scan")
+    if isinstance(total, int) and total > 0:
+        summary["unknown_percent"] = round(100 * len(unknown) / total, 2)
+        summary["additional_links_for_5pct"] = max(0, len(unknown) - int(total * 0.05))
     safe_plan, rejected = keep_safe_rows(plan, eligible)
     summary["approved_for_auto"] = sum(len(g["files"]) for g in safe_plan["groups"])
     summary["needs_review"] = rejected
+    if rejected:
+        summary.update(review_diagnostics(plan, eligible))
     if summary["approved_for_auto"]:
         _write_private_json(plan_path, safe_plan)
         if do_apply:
