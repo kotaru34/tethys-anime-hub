@@ -57,7 +57,11 @@ def is_safe_automatic_link(group, row):
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
                     "nested_exact_work", "auto_evidence"}:
         return False
-    if row.get("episode_type") not in {"Episode", "Special", "Movie"}:
+    # AniDB "Other" is *not* normally safe for auto matching. Allow O01/O02
+    # only for an explicit publisher-verified release override.
+    kind = row.get("episode_type")
+    if kind not in ({"Episode", "Special", "Movie", "Other"} if mode == "approved_release"
+                    else {"Episode", "Special", "Movie"}):
         return False
     aid, ep = row.get("target_anidb_id"), row.get("episode")
     if not isinstance(aid, int) or not isinstance(ep, int) or ep <= 0:

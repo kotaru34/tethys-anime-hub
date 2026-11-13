@@ -182,18 +182,25 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
         if verified is not None:
             source_numbers = [r.get("source_episode") or r.get("episode") for r in rows]
             required = verified["episodes"]
+            target_kind = verified.get("episode_type", "Episode")
             same_release = all(
                 PurePosixPath(r.get("path") or "").parts[:1] == (g["folder"],)
-                and r.get("episode_type") == "Episode" and r.get("mode") != "extra"
+                and r.get("episode_type") in ("Episode", target_kind)
+                and r.get("mode") != "extra"
                 for r in rows
             )
-            if sorted(source_numbers) == required and same_release:
+            # A newly downloaded one-episode subset can be linked without
+            # waiting for the entire release, but never with duplicate numbers.
+            unique_valid_numbers = (all(isinstance(n, int) and n in required for n in source_numbers)
+                                    and len(set(source_numbers)) == len(source_numbers))
+            if unique_valid_numbers and same_release:
                 aid = verified["anidb_id"]
                 for r in rows:
                     r["target_anidb_id"] = aid
                     r["episode"] = r.get("source_episode") or r["episode"]
+                    r["episode_type"] = target_kind
                     r["mode"] = "approved_release"
-                    r["reason"] = "verified publisher release identity: " + verified["source"]
+                    r["reason"] = "verified publisher release identity and AniDB episode type: " + verified["source"]
                 g["selected_anidb_id"] = aid
                 g["mode"] = "approved_release"
                 g["reason"] = "exact release folder crosswalk; not fuzzy title matching"

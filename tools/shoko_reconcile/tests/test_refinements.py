@@ -49,6 +49,7 @@ class RefinementTests(unittest.TestCase):
                       selected=17968, mode="auto_evidence")
         rows = refine(p)["groups"][0]["files"]
         self.assertEqual([r["target_anidb_id"] for r in rows], [18603, 18603])
+        self.assertEqual([r["episode_type"] for r in rows], ["Other", "Other"])
         self.assertTrue(all(r["mode"] == "approved_release" for r in rows))
         self.assertEqual(p["metrics"]["potential_links_before_api_validation"], 2)
 

@@ -8,6 +8,11 @@
     ],
     "year": 2024,
     "source": "https://anilibria.tv/release/5-toubun-no-hanayome-specials2.html",
-    "explanation": "Distributor explicitly labels 2024 specials; filename punctuation falsely matches 2023 AniDB 17968."
+    "explanation": "Publisher confirms 2024 two-part special; Shoko AniDB 18603 records TV Part 1/2 as O01/O02, episode IDs 290245/290246; E01 is the separate 50-minute complete movie edit. Release title was wrongly matched to 2023 series 17968.",
+    "episode_type": "Other",
+    "anidb_episode_ids": {
+      "1": 290245,
+      "2": 290246
+    }
   }
 ]

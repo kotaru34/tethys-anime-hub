@@ -30,6 +30,10 @@ class AutoFallbackTests(unittest.TestCase):
         self.assertEqual(review, 0)
         self.assertEqual(len(safe["groups"][0]["files"]), 2)
 
+    def test_unverified_other_category_cannot_be_automatically_linked(self):
+        row = self.row(100, 18603, 1, mode="public_crosswalk", kind="Other")
+        self.assertFalse(is_safe_automatic_link(self.group([row]), row))
+
     def test_near_tie_between_sequel_and_base_is_not_auto_linked(self):
         row = self.row()
         group = self.group([row], [
@@ -42,7 +46,7 @@ class AutoFallbackTests(unittest.TestCase):
         # Verified series identity is supplied by an exact release-specific
         # publisher crosswalk rather than a similarity score.
         for fid in (778, 779):
-            row = self.row(fid, 18603, 1, mode="approved_release")
+            row = self.row(fid, 18603, 1, mode="approved_release", kind="Other")
             self.assertTrue(is_safe_automatic_link(
                 {"folder": "Go-Toubun no Hanayome~ - AniLibria.TV [WEBRip 1080p HEVC]",
                  "candidates": []}, row))
