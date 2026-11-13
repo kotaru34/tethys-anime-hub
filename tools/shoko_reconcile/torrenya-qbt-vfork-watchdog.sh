@@ -7,16 +7,16 @@ main="$(systemctl show --property=MainPID --value qbittorrent.service)"
 [[ -r "/proc/$main/task/$main/wchan" ]] || exit 0
 
 # Running qBittorrent is not a problem; only inspect the observed blocked-vfork state.
-read -r wchan < "/proc/$main/task/$main/wchan"
+# procfs wchan generally has no trailing newline: Bash `read` would return 1
+# and `set -e` would silently terminate this watchdog before detecting a hang.
+wchan="$(cat "/proc/$main/task/$main/wchan" 2>/dev/null || true)"
 [[ "$wchan" == 'kernel_clone' ]] || exit 0
 main_stat="$(ps -p "$main" -o stat= || true)"
 [[ "$main_stat" == D* ]] || exit 0
 
-# HTTP 403/401 is a healthy HTTP response; curl -f must NOT be used here.
-if curl -sS -o /dev/null --connect-timeout 1 --max-time 3 \
-    http://127.0.0.1:8080/api/v2/app/version 2>/dev/null; then
-    exit 0
-fi
+# Do not gate on an HTTP probe: a WebUI worker may answer 403 while the
+# qBittorrent main event loop is deadlocked. Require the exact process
+# signature and a helper age >= 45s before terminating anything.
 
 # QProcess::startDetached() uses a double-fork. Don't touch any unrelated child.
 parent="$(pgrep -P "$main" -x qbittorrent-nox | head -n1 || true)"
