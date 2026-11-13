@@ -1,8 +1,27 @@
 #!/usr/bin/env bash
 # qBittorrent completion hook -> one Shoko ImportNewFiles request 5 minutes
-# after the most recent completion (trailing-edge debounce).
+# after the most recent Anime-tagged completion (trailing-edge debounce).
+# qBittorrent MUST invoke: /usr/local/bin/notify-shoko.sh "%G"
 set -Eeuo pipefail
 umask 077
+
+# qBittorrent %G is a comma-separated list of tags. Fail closed when omitted.
+# Filter *before* touching state so unrelated torrents cannot reset the timer.
+if [[ "${1:-}" != '--worker' || "${SHOKO_NOTIFY_INTERNAL_WORKER:-}" != '1' ]]; then
+    [[ $# -eq 1 ]] || exit 0
+    matched=0
+    IFS=',' read -r -a tags <<< "$1"
+    for tag in "${tags[@]}"; do
+        # Whitespace is not significant around comma-separated tag names.
+        tag="${tag#"${tag%%[![:space:]]*}"}"
+        tag="${tag%"${tag##*[![:space:]]}"}"
+        if [[ "$tag" == 'Anime' ]]; then
+            matched=1
+            break
+        fi
+    done
+    (( matched )) || exit 0
+fi
 
 STATE_DIR="${SHOKO_NOTIFY_STATE_DIR:-/var/lib/torrenya/shoko-notify}"
 KEY_FILE="${SHOKO_NOTIFY_KEY_FILE:-/etc/torrenya/shoko-api-key}"
@@ -38,7 +57,7 @@ read_state() {
 }
 log() { printf '%s %s\n' "$(date -Is)" "$*"; }
 
-if [[ "${1:-}" == '--worker' ]]; then
+if [[ "${1:-}" == '--worker' && "${SHOKO_NOTIFY_INTERNAL_WORKER:-}" == '1' ]]; then
     exec 9>"$LOCK"
     while true; do
         flock -x 9
@@ -85,18 +104,18 @@ if [[ "${1:-}" == '--worker' ]]; then
             sleep "$RETRY_SECONDS"
         fi
     done
-elif [[ $# -eq 0 ]]; then
+elif [[ $# -eq 1 ]]; then
     exec 9>"$LOCK"
     flock -x 9
     read_state
     printf '%s %s\n' "$(date +%s)" "$((seq + 1))" > "$STATE"
     if [[ ! -s "$PID_FILE" ]] || ! kill -0 "$(<"$PID_FILE")" 2>/dev/null; then
         # Never block qBittorrent for five minutes. The worker survives its shell.
-        nohup "$SCRIPT" --worker 9>&- </dev/null >>"$LOG" 2>&1 &
+        SHOKO_NOTIFY_INTERNAL_WORKER=1 nohup "$SCRIPT" --worker 9>&- </dev/null >>"$LOG" 2>&1 &
         printf '%s\n' "$!" > "$PID_FILE"
     fi
     flock -u 9
 else
-    echo 'Usage: notify-shoko.sh [--worker]' >&2
+    echo 'Usage: notify-shoko.sh "%G" (qBittorrent tags argument)' >&2
     exit 2
 fi
