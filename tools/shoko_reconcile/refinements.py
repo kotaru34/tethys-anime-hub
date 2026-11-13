@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 import re
 
 from matching import (clean_release_title, match_key, season_hint,
-                      classify_episode, type_hint, similarity)
+                      classify_episode, type_hint, similarity, target_season_supported)
 
 _SEQUEL = re.compile(r"(?i)(?<!\w)(?:season\s*0*[2-9]\d?|s0*[2-9]\d?|[2-9]\d?(?:nd|rd|th)\s+season|(?:ii|iii|iv|v|vi))\b")
 _PART = re.compile(r"(?i)\bpart[\s_.-]*0*([1-9]\d?)\b")
@@ -176,6 +176,10 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
         initial = sum(bool(r.get("target_anidb_id") and r.get("episode") and r.get("mode") not in ("review", "extra", "episode_review")) for r in rows)
         if g.get("mode") in ("approved_override", "approved_file_override"):
             continue
+        # A mixed-season folder may contain untagged files. Without source
+        # season evidence they must not inherit the first-season title match.
+        if g.get("mixed_season_source") and g.get("season_bucket") is None:
+            continue
         # Exact release-specific correction, supported by the publisher page.
         # No franchise-wide veto: these would reduce recall for valid OVA releases.
         verified = verified_releases.get(g["folder"])
@@ -318,6 +322,13 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                 r["target_anidb_id"] = None
                 r["mode"] = "episode_review"
                 r["reason"] = "episode number exceeds verified series length; potentially a recap or special"
+        # Defense in depth: old v2 plans and refinement promotions bypass the
+        # fresh-search ranking stage. Never let one promote an S02 file to S01.
+        for r in rows:
+            if r.get("target_anidb_id") and not target_season_supported(g, r):
+                r["target_anidb_id"] = None
+                r["mode"] = "episode_review"
+                r["reason"] = "candidate season is not supported by source season evidence"
         final = sum(bool(r.get("target_anidb_id") and r.get("episode") and r.get("mode") not in ("review", "extra", "episode_review")) for r in rows)
         if final > initial:
             revisions.append({"folder": g["folder"], "additional_potential": final - initial, "series":g.get("selected_anidb_id")})

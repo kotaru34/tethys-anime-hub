@@ -73,7 +73,13 @@ class Coordinator:
             self.pending.set()
         if target in ("Queue:OnConnected", "Queue:QueueStateChanged") and arguments:
             if queue_idle(arguments[0]):
+                was_idle = self.idle.is_set()
                 self.idle.set()
+                # Hash-only recognition may leave files unknown without a
+                # FileNotMatched notification. The busy->idle transition is
+                # therefore another *event-driven* reconciliation trigger.
+                if not was_idle:
+                    self.pending.set()
             else:
                 self.idle.clear()
 
