@@ -312,14 +312,22 @@ def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str =
     # the chronology from same-franchise candidates. Undated base title counts as S1.
     query_base=base_title(folder)
     companion_years=set()
-    seen_undated_base=False
+    dated_ids=set()
+    undated_base_ids=set()
     for c in candidates:
         t=str(c.get("title") or c.get("Title") or "")
         t_base=re.sub(r"\s*\((?:19|20)\d{2}\)\s*$","",t)
         if similarity(query_base,t_base)<0.87:continue
+        aid = c.get("anidb_id") or c.get("ID")
         y=c.get("year") or year_hint(t)
-        if y:companion_years.add(int(y))
-        elif match_key(t_base)==match_key(query_base):seen_undated_base=True
+        if y:
+            companion_years.add(int(y))
+            if aid: dated_ids.add(int(aid))
+        elif match_key(t_base)==match_key(query_base) and aid:
+            undated_base_ids.add(int(aid))
+    # Shoko search may emit an undated copy of the SAME entry found with a
+    # year in the alias catalog. It is not an extra S1: count unique AniDB IDs.
+    seen_undated_base=bool(undated_base_ids - dated_ids)
     ordered_years=sorted(companion_years)
     year_season={y:i+1+(1 if seen_undated_base else 0) for i,y in enumerate(ordered_years)}
     best={}
