@@ -2,9 +2,10 @@
 import sys
 from pathlib import Path
 import unittest
+import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from event_bridge import events_in, queue_idle, websocket_url, HANDSHAKE, resolve_apply_mode
+from event_bridge import events_in, queue_idle, websocket_url, HANDSHAKE, resolve_apply_mode, wait_until_queue_idle
 
 
 class ProtocolTests(unittest.TestCase):
@@ -46,6 +47,57 @@ class ServiceModeTests(unittest.TestCase):
             with self.subTest(value=bad), self.assertRaises(ValueError):
                 resolve_apply_mode(service_setting=bad)
 
+
+
+class MissedIdleEventTests(unittest.TestCase):
+    class QueueAPI:
+        def __init__(self, statuses):
+            self.statuses = iter(statuses)
+            self.requests = 0
+
+        def request(self, method, path):
+            assert method == "GET" and path == "/Queue"
+            self.requests += 1
+            busy = next(self.statuses)
+            return {
+                "TotalCount": 1 if busy else 0, "WaitingCount": 0,
+                "BlockedCount": 0, "CurrentlyExecuting": []
+            }
+
+    class FakeEvent:
+        def __init__(self):
+            self.waits = []
+            self.cleared = 0
+
+        def wait(self, timeout=None):
+            self.waits.append(timeout)
+            return False  # No idle SignalR event ever arrives.
+
+        def clear(self):
+            self.cleared += 1
+
+    def test_idle_queue_does_not_wait_for_signalr(self):
+        api = self.QueueAPI([False])
+        event = self.FakeEvent()
+        wait_until_queue_idle(api, event)
+        self.assertEqual(api.requests, 1)
+        self.assertEqual(event.waits, [])
+
+    def test_missing_idle_notification_recovers_via_bounded_queue_check(self):
+        api = self.QueueAPI([True, True, False])
+        event = self.FakeEvent()
+        wait_until_queue_idle(api, event, retry_seconds=4)
+        self.assertEqual(api.requests, 3)
+        self.assertEqual(event.waits, [4, 4])
+        self.assertEqual(event.cleared, 2)
+
+    def test_busy_queue_rechecks_even_if_idle_flag_was_stale(self):
+        api = self.QueueAPI([True, False])
+        event = threading.Event()
+        event.set()
+        wait_until_queue_idle(api, event, retry_seconds=4)
+        self.assertEqual(api.requests, 2)
+        self.assertFalse(event.is_set())
 
 
 if __name__ == "__main__":
