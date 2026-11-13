@@ -187,7 +187,7 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
                                               min_score=0.79 if aggressive else 0.85)
         if season_conflict:
             selected,mode,reason=None,"review","conflicting or mixed season evidence across files"
-        anchor=_selected_anchor(original,ranked)
+        anchor=_selected_anchor(original,candidates)
         if season_conflict:
             anchor=None
         if anchor is not None and not ("OVA" in folder.upper() and len(files)>2):
