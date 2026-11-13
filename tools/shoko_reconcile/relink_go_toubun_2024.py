@@ -30,8 +30,10 @@ def inspect(api):
             raise RuntimeError(f"Unexpected File ID for {fid}")
         locs = file.get("Locations") or []
         paths = [str(loc.get("RelativePath") or "") for loc in locs]
-        if not any(path.startswith(EXPECTED_RELEASE + "/") and
-                   (f"[{number:02d}]" in path) for path in paths):
+        if not any(path.startswith(EXPECTED_RELEASE + " [") and
+                   "/" in path and
+                   (f"[{number:02d}]" in path.split("/", 1)[1])
+                   for path in paths):
             raise RuntimeError(f"File {fid} has changed path; refusing to touch it")
         refs = file.get("SeriesIDs") or []
         ids = {int((ref.get("SeriesID") or {}).get("AniDB") or -1) for ref in refs}
