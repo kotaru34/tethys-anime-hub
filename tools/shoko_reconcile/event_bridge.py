@@ -114,6 +114,15 @@ class Coordinator:
                 print(f"Reconciliation event failed: {type(exc).__name__}: {exc}", flush=True)
 
 
+def resolve_apply_mode(cli_apply=False, cli_confirm="", service_setting=""):
+    """Explicit opt-in only: CLI --apply --confirm LINK or systemd LINK flag."""
+    if cli_apply and cli_confirm != "LINK":
+        raise ValueError("--apply requires --confirm LINK")
+    if service_setting not in ("", "LINK"):
+        raise ValueError("SHOKO_RECONCILE_APPLY must be unset or exactly LINK")
+    return bool(cli_apply or service_setting == "LINK")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=os.getenv("SHOKO_URL", "http://127.0.0.1:8111"))
@@ -126,8 +135,12 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.minimum_age < 60:
         parser.error("--minimum-age must be at least 60 seconds")
-    if args.apply and args.confirm != "LINK":
-        parser.error("--apply requires --confirm LINK")
+    try:
+        do_apply = resolve_apply_mode(
+            args.apply, args.confirm, os.getenv("SHOKO_RECONCILE_APPLY", ""))
+    except ValueError as exc:
+        parser.error(str(exc))
+    print(f"Shoko reconciler mode: {'AUTO-LINK' if do_apply else 'DRY-RUN'}", flush=True)
     key = os.getenv("SHOKO_API_KEY")
     if not key:
         parser.error("SHOKO_API_KEY missing")
@@ -135,7 +148,7 @@ def main(argv=None):
     catalog = AliasCatalog(args.catalog) if args.catalog and Path(args.catalog).is_file() else None
     coordinator = Coordinator(
         api, catalog=catalog, minimum_age=args.minimum_age,
-        state_path=args.state, plan_path=args.plan, do_apply=args.apply)
+        state_path=args.state, plan_path=args.plan, do_apply=do_apply)
 
     try:
         from websocket import create_connection
