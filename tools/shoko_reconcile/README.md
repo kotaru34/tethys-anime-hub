@@ -148,3 +148,33 @@ python3 shoko_reconcile.py --status
 ```
 
 If Shoko queues metadata fetching, let its jobs settle and rerun. Verify the sample file-to-episode links visually in Shoko before an unbounded `--apply`. **No 5% or 10% claim can be made without these host-side results.** Never commit the user's private plan, inventory, API key, or snapshots.
+
+## v2.3 – Source-season evidence and event-driven recovery (2026-11-13)
+
+**Safety first:** a successful Shoko file-to-episode manual link is not proof that the AniDB series/season is correct. Shoko's episode E01 exists in several works. This revision uses **episode source season** (e.g. `S02E11`) as independent identity evidence, even when the release directory has no season marker. It never considers a valid episode number alone as evidence for S01 vs S02.
+
+- Search and rank season-specific candidate titles from per-file tags and alias-catalog metadata. Date chronology operates on **distinct AniDB IDs**, not duplicate Shoko/alias results for the same anime. Numbered `... 2` and `Part 2` suffixes are contextual and require a sufficiently matching complete title stem; no named-anime special cases were introduced.
+- When a single release directory contains **both** `S01E..` and `S02E..`, independently resolve the season batches; untagged files must not be silently inherited into one of them.
+- The season safety check is performed in **fresh plans**, **offline refinement of legacy plans**, **direct manual-link apply**, and **unattended fallback**. Explicit file/release-approved mappings remain possible when source numbering is known to be exceptional.
+- On Shoko queue **busy → idle** events, the SignalR bridge schedules fallback reconciliation even if Shoko does not emit `Shoko:FileNotMatched`. Startup/reconnect also triggers a check. This is queue-event-driven, not a fixed periodic scanner.
+- Synthetic regression tests cover sequel vs original, aliases/candidate chronology collisions, same-directory mixed seasons, old-plan first-season corruption, OVA/cour and publisher-verified specials, and queue transitions. CI tests Python 3.11/3.12/3.13. Private `shoko-plan*.json` inventories must **never** be committed.
+
+To validate on the Shoko host **without changing any file, database, or link**:
+
+```bash
+cd /opt/tethys-anime-hub/tools/shoko_reconcile
+python3 -m unittest discover -s tests -v
+python3 shoko_reconcile.py --status
+python3 shoko_reconcile.py \
+  --plan /root/shoko-future-dry-run.json \
+  --catalog /var/cache/tethys/anime-offline-database.jsonl
+
+# Optional offline replay of a PRIVATE legacy v2 plan: do not copy to Git.
+python3 shoko_reconcile.py \
+  --analyze-plan /root/shoko-plan-v2.2.json \
+  --total-files 1167 \
+  --catalog /var/cache/tethys/anime-offline-database.jsonl \
+  --plan /root/shoko-v2.3-replay.json
+```
+
+**Important:** the archived `--analyze-plan` path rechecks historical decisions, not actual present-day Shoko state, and can correctly defer previously optimistic links. Compare the proposed mappings **by file ID and AniDB identity**, not solely the total count of potential links. If the library has zero Unrecognized files, an ordinary new `--plan` will be empty; exercise the automatic fallback with a later newly ingested release or an isolated API fixture. Leave the event service in dry-run until its live behavior and accuracy are confirmed. Any timestamp-based franchise-season inference is heuristic and must fail closed if necessary evidence is missing.
