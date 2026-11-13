@@ -115,6 +115,34 @@ class SeasonEvidenceTests(unittest.TestCase):
             {"file_id": 2, "path": folder + "/Galactic Harbor S02E02.mkv"}]
         self.assertEqual(group_season_evidence(folder, files), (None, True))
 
+    def test_mixed_seasons_in_one_directory_are_auto_partitioned(self):
+        folder = "Galactic Harbor: Quick Sailing!"
+        files = source_files(folder, season=1, count=2) + [
+            {"file_id": 3, "path": folder + "/Galactic Harbor - S02E01.mkv"},
+            {"file_id": 4, "path": folder + "/Galactic Harbor - S02E02.mkv"},
+        ]
+        api = FakeAPI(folder, files)
+        plan = prepare(api, {}, catalog=FakeCatalog())
+        self.assertEqual(len(plan["groups"]), 2)
+        self.assertEqual(plan["metrics"]["potential_links_before_api_validation"], 4)
+        mapping = {
+            r["file_id"]: r["target_anidb_id"]
+            for group in plan["groups"] for r in group["files"]
+        }
+        self.assertEqual(mapping, {1: 101, 2: 101, 3: 102, 4: 102})
+
+    def test_numbered_sequel_suffix_requires_same_franchise(self):
+        from matching import contextual_candidate_season
+        folder = "Galactic Harbor: Quick Sailing!"
+        self.assertEqual(contextual_candidate_season(
+            "Galactic Harbor: Quick Sailing! Part 2", folder), 2)
+        self.assertEqual(contextual_candidate_season(
+            "Galactic Harbor: Quick Sailing! 2", folder), 2)
+        self.assertIsNone(contextual_candidate_season(
+            "Unrelated Harbor: Quick Sailing! Part 2", folder))
+        self.assertIsNone(contextual_candidate_season(
+            "Galactic Harbor: Quick Sailing! 86", folder))
+
     def test_season_folder_and_file_disagreement_is_conflict(self):
         folder = "Galactic Harbor: Quick Sailing! (Season 2)"
         self.assertEqual(group_season_evidence(folder, source_files(folder, season=1, count=1)),
