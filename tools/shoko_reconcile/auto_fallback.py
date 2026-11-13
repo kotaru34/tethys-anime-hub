@@ -15,6 +15,7 @@ import sys
 import time
 
 from catalog import AliasCatalog
+from matching import target_season_supported
 from shoko_reconcile import ShokoAPI, _write_private_json, apply, prepare
 
 
@@ -53,6 +54,8 @@ def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
 
 def is_safe_automatic_link(group, row):
     """Approve only well-evidenced work identity; episode checked again by apply()."""
+    if not target_season_supported(group, row):
+        return False
     mode = row.get("mode")
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
                     "nested_exact_work", "auto_evidence"}:
