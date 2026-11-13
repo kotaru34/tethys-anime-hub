@@ -176,6 +176,10 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
         initial = sum(bool(r.get("target_anidb_id") and r.get("episode") and r.get("mode") not in ("review", "extra", "episode_review")) for r in rows)
         if g.get("mode") in ("approved_override", "approved_file_override"):
             continue
+        # A mixed-season folder may contain untagged files. Without source
+        # season evidence they must not inherit the first-season title match.
+        if g.get("mixed_season_source") and g.get("season_bucket") is None:
+            continue
         # Exact release-specific correction, supported by the publisher page.
         # No franchise-wide veto: these would reduce recall for valid OVA releases.
         verified = verified_releases.get(g["folder"])
