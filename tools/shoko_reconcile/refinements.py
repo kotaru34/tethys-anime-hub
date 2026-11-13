@@ -12,7 +12,8 @@ from pathlib import Path, PurePosixPath
 import re
 
 from matching import (clean_release_title, match_key, season_hint,
-                      classify_episode, type_hint, similarity, target_season_supported)
+                      classify_episode, type_hint, similarity, target_season_supported,
+                      parenthetical_title_variants)
 
 _SEQUEL = re.compile(r"(?i)(?<!\w)(?:season\s*0*[2-9]\d?|s0*[2-9]\d?|[2-9]\d?(?:nd|rd|th)\s+season|(?:ii|iii|iv|v|vi))\b")
 _PART = re.compile(r"(?i)\bpart[\s_.-]*0*([1-9]\d?)\b")
@@ -80,7 +81,12 @@ def _title_candidate_confidence(group: dict, candidate: dict) -> float:
     if _key(query) == _key(title):
         return 1.3
     # Strong evidence from a complete title (not its shorter franchise root).
-    best = max(similarity(query, x) for x in aliases if x)
+    # A release may name the same work twice, e.g. Japanese + English.
+    # Compare each complete, independently extracted title against candidate
+    # aliases; never treat codec/season parentheticals as a work title.
+    source_titles = [query] + parenthetical_title_variants(folder)
+    best = max(similarity(source_title, x)
+               for source_title in source_titles for x in aliases if x)
     if qs is not None and cs == qs:
         best += 0.14
     if gpart is not None and cpart == gpart:

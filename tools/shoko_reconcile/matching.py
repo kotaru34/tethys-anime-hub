@@ -68,6 +68,33 @@ def clean_release_title(folder: str) -> str:
     return s
 
 
+
+def parenthetical_title_variants(folder: str) -> list[str]:
+    """Extract independently usable aliases from a dual-language release title.
+
+    'Original (English Translation) (Season 1)' supplies two full names.
+    Ignore season labels, release metadata, nested codec blocks and dates.
+    Do not guess that every parenthesized string is a title.
+    """
+    title = clean_release_title(folder)
+    for m in re.finditer(r"\(([^()]*)\)", title):
+        alternative = m.group(1).strip()
+        before = title[:m.start()]
+        # An inner '(by GROUP)' within '[AMZN (by GROUP)]' is not an alias.
+        if before.rfind("[") > before.rfind("]"):
+            continue
+        if (len(alternative) < 10 or len(match_key(alternative).split()) < 2
+                or TECH.search(alternative) or RE_SEASON.search(alternative)
+                or RE_YEAR.search(alternative) or RE_PART.search(alternative)
+                or re.match(r"(?i)^(?:by|group|source|release|video|audio|subs?|dub|codec)\b", alternative)):
+            continue
+        primary = before.strip(" ._-")
+        if len(match_key(primary).split()) < 2:
+            continue
+        return [primary, alternative]
+    return []
+
+
 def season_hint(s: str) -> int | None:
     m = RE_SEASON.search(s)
     if m: return int(next(g for g in m.groups() if g))
@@ -189,7 +216,7 @@ def classify_episode(relative_path: str, *, group: str = "") -> EpisodeInfo:
 def main_title_candidates(folder: str, files: list[dict]) -> list[str]:
     """Release-level consensus. Include names stripped from filenames for bad folder titles."""
     title=clean_release_title(folder)
-    choices=[title]
+    choices=[title]+parenthetical_title_variants(folder)
     stems=[]
     for f in files[:8]:
         rel=f.get("path") or f.get("RelativePath") or ""
@@ -198,6 +225,8 @@ def main_title_candidates(folder: str, files: list[dict]) -> list[str]:
         stem=strip_brackets(stem)
         stem=RE_SXE.sub(" ",stem)
         stem=RE_EP.sub(" ",stem)
+        # S01E11v2 is episode 11, revision 2; v2 is not part of the anime name.
+        stem=re.sub(r"(?i)(?:[\s._-]+)?v[1-9]\d?\s*$", "", stem)
         stem=re.sub(r"(?i)\s*[-_. ]+\d{1,3}(?:\.\d+)?\s*(?:\[|\(|$).*", "", stem)
         stem=re.sub(r"(?i)\s*\[\d{1,3}\].*", "", stem)
         stem=re.sub(r"(?i)\s*\[.*", "", stem)
