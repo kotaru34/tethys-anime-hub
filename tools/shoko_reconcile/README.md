@@ -179,6 +179,45 @@ python3 shoko_reconcile.py \
 
 **Important:** the archived `--analyze-plan` path rechecks historical decisions, not actual present-day Shoko state, and can correctly defer previously optimistic links. Compare the proposed mappings **by file ID and AniDB identity**, not solely the total count of potential links. If the library has zero Unrecognized files, an ordinary new `--plan` will be empty; exercise the automatic fallback with a later newly ingested release or an isolated API fixture. Leave the event service in dry-run until its live behavior and accuracy are confirmed. Any timestamp-based franchise-season inference is heuristic and must fail closed if necessary evidence is missing.
 
+## Diagnose missing media / apparently skipped Shoko scans (read-only)
+
+`qbit-shoko-poller.service` sends Shoko's
+`GET /api/v3/Action/ImportNewFiles` only after the five-minute Anime
+completion debounce. HTTP 200 means Shoko completed the import-folder
+enumeration and queued any discovered file jobs; it does **not** mean every
+expected file was discovered or successfully hashed. The default import scans
+only new files. A manual import-folder `GET /api/v3/ImportFolder/{id}/Scan`
+rescans every candidate file. Shoko's recursive directory enumeration sets
+`IgnoreInaccessible = true` in Shoko 5.3.3, so unreadable nested paths may
+be silently skipped.
+
+For an exact comparison, run on **CT2601**, using the **OS user that runs the
+Shoko Server** for the most representative filesystem access check:
+
+```bash
+cd /opt/tethys-anime-hub/tools/shoko_reconcile
+read -rsp 'Shoko API key: ' SHOKO_API_KEY; echo
+export SHOKO_API_KEY
+PYTHONDONTWRITEBYTECODE=1 python3 -B audit_inventory.py
+# If Shoko Server itself runs as 'shoko':
+runuser -u shoko -- env SHOKO_API_KEY="$SHOKO_API_KEY" PYTHONDONTWRITEBYTECODE=1 \\
+  /opt/tethys-anime-hub/.venv-shoko/bin/python -B audit_inventory.py
+unset SHOKO_API_KEY
+```
+
+The audit fetches read-only `/ImportFolder` and paginated `/File`
+locations, opens video files to confirm they can actually be read, then
+compares them to disk paths and sizes. It reports `UNINDEXED MEDIA`,
+stale/indexed-but-invisible files, file-size mismatches, scan errors, and
+missing files grouped by release folder. It never changes files, schedules
+a Shoko scan, or computes hashes. A nonzero exit code flags incomplete
+coverage or missing readable files.
+
+The Shoko import-folder `FileSize` sums **indexed VideoLocal** file sizes,
+not arbitrary data under `/Anime`; total recognized anime/series do not
+equal the number of release folders. Interpret `du`, Shoko's UI size,
+and folder counts accordingly.
+
 ## Opt-in systemd unattended linking (after live verification)
 
 The standalone Shoko LXC event listener is `shoko-reconcile-events.service`.
