@@ -218,6 +218,54 @@ not arbitrary data under `/Anime`; total recognized anime/series do not
 equal the number of release folders. Interpret `du`, Shoko's UI size,
 and folder counts accordingly.
 
+## AUTO-LINK review backlog exceeds 5%
+
+The Shoko dashboard lists TV Series, Movies, Web and other recognized work
+types. These work counts are **not** the number of unrecognized video files.
+The actual quality metric is `Unrecognized / Files`, from
+`python3 shoko_reconcile.py --status`; for instance 137 of 2155 = 6.36%,
+so at least 30 additional *correct* links are needed to get back to <=5%
+if the library size stays the same.
+
+The fallback intentionally does **not** auto-link ambiguous title searches,
+numberless episodes, speculative cour shifts, unknown specials or a sequel
+based on a franchise root. A `needs_review:137` line means the worker reached
+the reconciliation plan and *none of the 137 stable unknowns passed safety
+gates*. It is not a failure to run Shoko's filesystem scan.
+
+The unattended policy now also accepts `strong_context` matches **only
+when they pass the same strict candidate score >=0.98 and >=0.18 gap
+against every rival**, plus the existing source-season and episode checks
+required for `auto_evidence`. The normal `strong_context` 0.91/0.075
+threshold is deliberately **not** enough on its own for unattended linking.
+
+Every idle plan run now writes a private inspection snapshot to
+`/var/lib/shoko-reconcile/realtime-plan.review.json` (or the service's
+configured plan base name), including even 100%-rejected plans. The journal
+prints `unknown_percent`, `additional_links_for_5pct`,
+`review_by_mode`, `review_by_reason`, and up to 12 `review_top_groups`.
+Review the JSON *locally on CT2601*, **never commit it**:
+
+```bash
+journalctl -u shoko-reconcile-events.service -n 30 --no-pager
+python3 - <<'PY'
+import json
+p="/var/lib/shoko-reconcile/realtime-plan.review.json"
+d=json.load(open(p))
+for g in sorted(d["groups"], key=lambda g:-len(g.get("files",[]))):
+    rejected=[f for f in g["files"] if f.get("mode") in
+              ("review","episode_review","strong_context")]
+    if rejected:
+        print(g["folder"], len(rejected), g.get("mode"), g.get("reason"),
+              [(f["path"],f.get("mode"),f.get("reason")) for f in rejected[:2]])
+PY
+```
+
+Do not lower matching thresholds merely to meet the numerical target:
+incorrectly identifying a work or episode degrades the archive. The private
+review plan can be used to validate release-specific AniDB IDs, fill curated
+aliases or publisher-backed overrides, then rerun the unattended fallback.
+
 ## Opt-in systemd unattended linking (after live verification)
 
 The standalone Shoko LXC event listener is `shoko-reconcile-events.service`.
