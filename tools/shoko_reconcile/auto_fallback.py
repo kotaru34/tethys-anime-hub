@@ -66,6 +66,19 @@ def is_safe_automatic_link(group, row):
     src = row.get("source_episode")
     if src is not None and src != ep:
         return False
+    # A release name like "Specials", "OVA", "∽", "*" or "~" may refer
+    # to different AniDB works in the same franchise. A perfect filename
+    # similarity score cannot establish the production year or episode identity.
+    folder = str(group.get("folder") or "").casefold()
+    special_markers = ("[ova]", " ova ", "special", "∽", "＊", "~", "*")
+    if any(marker in folder for marker in special_markers):
+        competitors = [
+            c for c in group.get("candidates") or []
+            if c.get("anidb_id") != aid
+            and float(c.get("score") or 0) >= 0.60
+        ]
+        if competitors:
+            return False
     # Automatic title fuzzy guesses require independent review.
     if mode == "auto_evidence":
         candidates = group.get("candidates") or []
