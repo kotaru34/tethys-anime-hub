@@ -2,7 +2,7 @@
 """Event-driven Shoko 5.3.3 Reconciler using the native SignalR aggregate hub.
 
 Shoko sends Shoko:FileNotMatched for misses and Queue:QueueStateChanged
-for scheduler activity. This subscribes to both; no cron or periodic timer.
+for scheduler activity. Subscribes to both; a bounded /Queue recheck prevents\nmissed idle notifications from blocking an event-triggered reconciliation.
 Use --apply only after confirming the dry-run behavior on your host.
 """
 from __future__ import annotations
@@ -50,6 +50,23 @@ def websocket_url(shoko_url):
         raise ValueError("SignalR collector must connect to locally running Shoko over loopback")
     host = parts.netloc
     return f"ws://{host}/signalr/aggregate?feeds=shoko,queue"
+
+
+def wait_until_queue_idle(api, idle_event, *, retry_seconds=30):
+    """Wait for true queue idleness; SignalR can miss the busy->idle edge.
+
+    Check the live Shoko queue before any wait. If it is busy, listen for an
+    idle event, but always wake after a bounded interval and recheck via API.
+    This is only called during an already-triggered reconciliation, not a
+    periodic library-wide scan.
+    """
+    while queue_is_busy(api):
+        print(f"Shoko queue still busy; rechecking within {retry_seconds}s", flush=True)
+        idle_event.wait(timeout=retry_seconds)
+        # Clear stale idle notifications even when a timeout occurs: the next
+        # iteration must be based on actual /Queue state, not an old event.
+        idle_event.clear()
+
 
 
 class Coordinator:
@@ -101,14 +118,10 @@ class Coordinator:
                     continue
                 # One event-triggered grace period. Not a recurring polling timer.
                 time.sleep(self.minimum_age + 2)
-                # Queue activity is signaled by Shoko SignalR, not by polling.
-                self.idle.wait()
-                if queue_is_busy(self.api):
-                    # Queue event may have raced with a newly scheduled job.
-                    self.idle.clear()
-                    self.idle.wait()
-                    if queue_is_busy(self.api):
-                        raise RuntimeError("Shoko queue still busy on idle event")
+                # SignalR idle events may be lost during imports/reconnects.
+                # Never block forever when /Queue is already empty.
+                wait_until_queue_idle(self.api, self.idle)
+                print("Shoko queue idle confirmed via API; running fallback", flush=True)
                 self.reconcile(self.do_apply)
             except Exception as exc:
                 print(f"Reconciliation event failed: {type(exc).__name__}: {exc}", flush=True)
