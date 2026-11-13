@@ -58,11 +58,20 @@ class ExactFirstSeasonTest(unittest.TestCase):
         self.assertIsNone(ranked[0]["season"])
         self.assertEqual(ranked[0]["score"], 0.82)
 
-    def test_first_season_query_not_promoted_without_exact_alias(self):
+    def test_already_supported_base_title_inference_still_works(self):
+        # Existing code supported exact base-title work identity even if the
+        # noisy release query itself still contained a '(Season 1)' suffix.
         ranked = rank_candidates(
             ["Galactic Voyage (Season 1)"],
             [{"anidb_id": 1, "title": "Galactic Voyage", "type": "TV"}],
             folder="Galactic Voyage (Season 1)", season=1)
+        self.assertEqual(ranked[0]["season"], 1)
+
+    def test_similar_but_not_exact_alias_not_promoted(self):
+        ranked = rank_candidates(
+            ["Galactic Journey (Season 1)"],
+            [{"anidb_id": 1, "title": "Galactic Voyage", "type": "TV"}],
+            folder="Galactic Journey (Season 1)", season=1)
         self.assertIsNone(ranked[0]["season"])
         self.assertLess(ranked[0]["score"], 0.85)
 
