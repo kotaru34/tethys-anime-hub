@@ -299,6 +299,18 @@ def target_season_supported(group: dict, row: dict) -> bool:
             candidate_season = contextual_candidate_season(str(alias), group.get("folder", ""))
             if candidate_season is not None:
                 break
+    # Prior v1 exact matches may use year-suffixed AniDB titles rather than
+    # numbered seasons (e.g. the third release named "(2026)"). Preserve
+    # that historical evidence only when it was an actual Shoko exact-title
+    # anchor, and when the franchise stem agrees. Fresh fuzzy plans do not
+    # qualify for this exception.
+    if (candidate_season is None and row.get("mode") == "prior_exact_title"
+            and group.get("prior_exact_evidence")
+            and year_hint(str(target.get("title") or ""))):
+        stem = re.sub(r"\\s*\\((?:19|20)\\d{2}\\)\\s*$", "",
+                      str(target.get("title") or ""))
+        if similarity(base_title(group.get("folder", "")), stem) >= 0.82:
+            return True
     # S01 with an exact base title is a permissible implicit S1 signal.
     if candidate_season is None and requested == 1:
         return True
