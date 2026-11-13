@@ -241,26 +241,49 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
     return refine(out, catalog=catalog)
 
 
+def split_mixed_season_media(folder: str, media: list[dict]):
+    """Partition an unmarked release folder containing several SxxE batches.
+
+    One directory is not one season. Keep files with no explicit SXE marker in
+    their own bucket, instead of silently inheriting another season's target.
+    """
+    buckets = defaultdict(list)
+    for entry in media:
+        locations = entry.get("Locations") or []
+        path = str((locations[0] if locations else {}).get("RelativePath") or "")
+        # Ignore parent folder season when deciding a file's own season bucket.
+        info = classify_episode(path, group="")
+        buckets[info.season if info.category == "Episode" else None].append(entry)
+    tagged = [value for value in buckets if value is not None]
+    if len(tagged) < 2:
+        return [(None, media)]
+    return [(season, entries) for season, entries in
+            sorted(buckets.items(), key=lambda item: (item[0] is None, item[0] or 0))]
+
+
 def prepare(api: ShokoAPI, overrides: dict, catalog=None, aggressive=False):
     files=api.unrecognized()
     raw={"version":1,"total_files_at_scan":sum(1 for _ in api.pages("/File")),
          "total_unrecognized_at_scan":len(files),"groups":[]}
     search_cache={}
     for folder,media in sorted(group_unrecognized(files).items()):
-        group=_group_from_raw(folder,media)
-        guesses=season_aware_queries(folder,group["files"],main_title_candidates(folder,group["files"]))
-        results={}
-        for query in guesses[:4]:
-            if query not in search_cache:
-                search_cache[query]=api.anime_search(query) if query and not folder.startswith("__") else []
-            for c in search_cache[query]:
-                if c.get("ID"):results[int(c["ID"])]=c
-        # Preserve full AniDB search result Titles, rather than v1's stripped candidate names.
-        group.update({"candidates": [{"anidb_id":r["ID"],"title":r.get("Title"),
-                        "type":r.get("Type","Unknown"),"shoko_id":r.get("ShokoID"),
-                        "Titles":r.get("Titles",[])} for r in results.values()],
-                      "mode":"review","selected_anidb_id":None})
-        raw["groups"].append(group)
+        for bucket, subset in split_mixed_season_media(folder, media):
+            group=_group_from_raw(folder,subset)
+            if bucket is not None:
+                group["season_bucket"] = bucket
+            guesses=season_aware_queries(folder,group["files"],main_title_candidates(folder,group["files"]))
+            results={}
+            for query in guesses[:4]:
+                if query not in search_cache:
+                    search_cache[query]=api.anime_search(query) if query and not folder.startswith("__") else []
+                for c in search_cache[query]:
+                    if c.get("ID"):results[int(c["ID"])]=c
+            # Preserve full AniDB title aliases, not just canonical names.
+            group.update({"candidates": [{"anidb_id":r["ID"],"title":r.get("Title"),
+                            "type":r.get("Type","Unknown"),"shoko_id":r.get("ShokoID"),
+                            "Titles":r.get("Titles",[])} for r in results.values()],
+                          "mode":"review","selected_anidb_id":None})
+            raw["groups"].append(group)
     return analyze_report(raw,catalog=catalog,overrides=overrides,aggressive=aggressive)
 
 
