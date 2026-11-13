@@ -131,6 +131,20 @@ class SeasonEvidenceTests(unittest.TestCase):
         }
         self.assertEqual(mapping, {1: 101, 2: 101, 3: 102, 4: 102})
 
+    def test_untagged_episode_in_mixed_season_directory_is_deferred(self):
+        folder = "Galactic Harbor: Quick Sailing!"
+        files = [
+            {"file_id": 1, "path": folder + "/Harbor - S01E01.mkv"},
+            {"file_id": 2, "path": folder + "/Harbor - S02E01.mkv"},
+            {"file_id": 3, "path": folder + "/Harbor - Ep 03.mkv"},
+        ]
+        plan = prepare(FakeAPI(folder, files), {}, catalog=FakeCatalog())
+        rows = {r["file_id"]: r for g in plan["groups"] for r in g["files"]}
+        self.assertEqual(plan["metrics"]["total_unrecognized_in_plan"], 3)
+        self.assertEqual(rows[1]["target_anidb_id"], 101)
+        self.assertEqual(rows[2]["target_anidb_id"], 102)
+        self.assertIsNone(rows[3]["target_anidb_id"])
+
     def test_numbered_sequel_suffix_requires_same_franchise(self):
         from matching import contextual_candidate_season
         folder = "Galactic Harbor: Quick Sailing!"
