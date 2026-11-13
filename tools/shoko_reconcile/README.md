@@ -261,3 +261,53 @@ services. The Shoko LXC's `shoko-reconcile-events.service` listens to Shoko
 queue events and is not a second import-folder scanner. Confirm no separate
 scheduled ImportNewFiles action exists on either container before declaring
 the entire deployment free of duplicate triggers.
+
+## Torrenya completion detection: independent qBittorrent API poller (preferred)
+
+The previous qBittorrent **Run external program on torrent completion** hook
+uses Qt `QProcess::startDetached()` and repeatedly deadlocked the Torrenya
+qBittorrent main process in a double-`vfork` chain. A SIGKILL of the stuck
+grandchild could recover the UI, but a watchdog is not a satisfactory solution.
+**Do not re-enable that completion command.**
+
+The replacement `qbit_shoko_poller.py` runs as a **separate systemd service**.
+It reads qBittorrent's local `GET /api/v2/torrents/info?tag=Anime` every
+30 seconds; it does **not** spawn from qBittorrent. Only an exact `Anime`
+tag and a completed torrent (`amount_left=0`, `progress≈1`,
+`completion_on>0`) count. It persists its state under
+`/var/lib/torrenya/shoko-poller/state.json` and schedules **one** Shoko
+`GET /api/v3/Action/ImportNewFiles` call 300 seconds after the most
+recent relevant completion. Old completed torrents are baselined without
+triggering a scan on initial installation. A missed completion during service
+downtime is detected after restart if the torrent remains in qBittorrent.
+
+The installer disables the old qBittorrent completion command **via its Web
+API** and verifies the setting is false, then disables the obsolete vfork
+watchdog timer. It requires valid WebUI API authentication to make this change.
+On qBittorrent 5.2+ enter an API key from WebUI settings, or use the existing
+WebUI username/password; credentials stay in a `0600` file readable only to
+the `kotaru` user. It never disables WebUI authentication, restarts
+qBittorrent, rewrites torrents, or edits files under `/Anime`.
+
+Run as **root inside CT 540 Torrenya**:
+
+```bash
+curl -fsSLo /tmp/install-qbit-shoko-poller.sh \
+  https://raw.githubusercontent.com/kotaru34/tethys-anime-hub/main/tools/shoko_reconcile/install-qbit-shoko-poller.sh
+bash /tmp/install-qbit-shoko-poller.sh
+```
+
+Once the installer succeeds, the only required systemd service for this
+transition is `qbit-shoko-poller.service`. The separate
+`shoko-reconcile-events.service` in the Shoko LXC is still used to identify
+already imported unknown files; it is **not** an import-folder scan trigger.
+
+To check: `systemctl status qbit-shoko-poller.service --no-pager` and
+`journalctl -u qbit-shoko-poller.service -n 30 --no-pager`. Optional pending
+state: `python3 /usr/local/libexec/qbit_shoko_poller.py --status`.
+
+The poller retries failed Shoko API requests without losing the pending state.
+A crash between Shoko's accepting a scan and the state commit may result in
+one redundant import request, but Shoko's ImportNewFiles is idempotent for
+registered paths. The poller does not prevent separate Shoko scheduled imports;
+those should be checked in the Shoko LXC if strict global deduplication matters.
