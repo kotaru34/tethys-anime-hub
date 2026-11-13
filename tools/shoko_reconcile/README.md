@@ -184,8 +184,25 @@ python3 shoko_reconcile.py \
 `notify-shoko.sh` is a replacement for the Torrenya CT 540 completion hook at
 `/usr/local/bin/notify-shoko.sh`. It preserves the existing Shoko 5.3.3
 `GET /api/v3/Action/ImportNewFiles` endpoint and API key
-(`/etc/torrenya/shoko-api-key`). The qBittorrent setting remains **Run external
-program on torrent completion:** `/usr/local/bin/notify-shoko.sh`.
+(`/etc/torrenya/shoko-api-key`). **Required qBittorrent setting change:** In Settings → Downloads → **Run external
+program on torrent completion**, use this exact command:
+
+```text
+/usr/local/bin/notify-shoko.sh "%G"
+```
+
+qBittorrent substitutes `%G` with the completed torrent's comma-separated
+**tags** (not its category). Only the exact, case-sensitive `Anime` tag is
+accepted, including combinations like `Movies, Anime`. Whitespace around tag
+names is ignored; `anime`, `AnimeArt`, untagged torrents, and missing `%G`
+arguments are ignored **before touching debounce state**. Non-anime completions
+therefore do not restart the five-minute timer. A no-argument manual run is
+intentionally a no-op; use `runuser -u kotaru -- /usr/local/bin/notify-shoko.sh Anime`
+for a tagged manual test.
+
+**Upgrade note:** The previous qBittorrent setting contained only the script
+path. After installing this update, that old setting will safely do nothing
+until you append `"%G"` in qBittorrent.
 
 The hook records every completion, returns immediately to qBittorrent and
 coalesces events into **one scan 300 seconds after the latest completion**.
