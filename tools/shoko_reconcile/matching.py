@@ -217,9 +217,77 @@ def main_title_candidates(folder: str, files: list[dict]) -> list[str]:
     return list(dict.fromkeys(x for x in choices if x))[:4]
 
 
-def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str = "") -> list[dict]:
+def group_season_evidence(folder: str, files: list[dict]) -> tuple[int | None, bool]:
+    """Resolve a consistent season from folder AND per-file SXE markers.
+
+    Reject contradictory/mixed evidence instead of silently mapping all files
+    from one directory to a first-season AniDB work. Untagged files inherit
+    an explicit folder season; bare folders do not imply season one.
+    """
+    folder_season = season_hint(clean_release_title(folder))
+    found = {ep.season for f in files
+             if (ep := classify_episode(f.get("path") or f.get("RelativePath") or "",
+                                        group=folder)).category != "Extra"
+             and ep.season is not None}
+    if len(found) > 1 or (folder_season is not None and found and found != {folder_season}):
+        return None, True
+    return (next(iter(found)) if found else folder_season), False
+
+
+def season_aware_queries(folder: str, files: list[dict], original: list[str]) -> list[str]:
+    """Search the sequel as well as the bare release name, without title IDs."""
+    season, conflict = group_season_evidence(folder, files)
+    queries = list(original)
+    if season and season > 1 and not conflict:
+        root = base_title(folder)
+        # Keep both an explicit season title and the original romaji spelling.
+        extra = [f"{root} Season {season}", f"{root} {season}"]
+        queries = extra + [q for q in queries if q not in extra]
+    return list(dict.fromkeys(queries))[:6]
+
+
+def target_season_supported(group: dict, row: dict) -> bool:
+    """Independent fail-closed guard for applying an automatic series link.
+
+    Strong title similarity and a valid episode number do NOT establish that
+    an S02E01 file belongs to a first-season E01. Candidate season evidence
+    must originate from matching (including catalog year chronology), or an
+    explicit season in the candidate's title/aliases. Manually approved rows
+    are outside this automatic policy.
+    """
+    if row.get("mode") in {"approved_file_override", "approved_override", "approved_release"}:
+        return True
+    path = row.get("path") or ""
+    parsed = classify_episode(path, group=group.get("folder", ""))
+    requested = parsed.season
+    if requested is None:
+        return True
+    aid = row.get("target_anidb_id")
+    if not aid:
+        return True
+    candidates = [c for c in group.get("candidates", [])
+                  if int(c.get("anidb_id") or -1) == int(aid)]
+    if not candidates:
+        # Do not assume a user-supplied/old plan has trustworthy provenance.
+        return False
+    target = candidates[0]
+    candidate_season = target.get("season")
+    if candidate_season is None:
+        candidate_season = season_hint(str(target.get("title") or ""))
+    if candidate_season is None:
+        for alias in target.get("aliases") or []:
+            candidate_season = season_hint(str(alias))
+            if candidate_season is not None:
+                break
+    # S01 with an exact base title is a permissible implicit S1 signal.
+    if candidate_season is None and requested == 1:
+        return True
+    return candidate_season == requested
+
+
+def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str = "", season: int | None = None) -> list[dict]:
     """Combine all aliases and contextual evidence. Scores are ranks, not calibrated probabilities."""
-    hint_s=season_hint(clean_release_title(folder));hint_y=year_hint(folder);hint_t=type_hint(folder)
+    hint_s=season if season is not None else season_hint(clean_release_title(folder));hint_y=year_hint(folder);hint_t=type_hint(folder)
     # For titles named only by year on AniDB (e.g. Season 2 = (2022)), infer
     # the chronology from same-franchise candidates. Undated base title counts as S1.
     query_base=base_title(folder)
@@ -266,6 +334,7 @@ def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str =
                 candidate_s=1
         # A known explicit season disagreement is a hard rejection.
         if hint_s and candidate_s and hint_s!=candidate_s:continue
+        if hint_s and hint_s > 1 and candidate_s is None:continue
         if hint_t=="Movie" and type_.casefold() not in ("unknown","movie","film"):continue
         if hint_t=="OVA" and type_.casefold() not in ("unknown","ova","special"):continue
         if hint_t=="ONA" and type_.casefold() not in ("unknown","ona","web"):continue
@@ -282,7 +351,8 @@ def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str =
         val={"anidb_id":int(aid),"shoko_id":c.get("shoko_id") or c.get("ShokoID"),
              "title":title,"type":type_,"score":round(max(0,min(1,adjusted)),4),
              "title_score":round(raw_score,4),"matched_alias":matched,
-             "year":candidate_y,"episodes":c.get("episodes"),"source":c.get("source","shoko")}
+             "year":candidate_y,"episodes":c.get("episodes"),"season":candidate_s,
+             "source":c.get("source","shoko")}
         if aid not in best or best[aid]["score"]<val["score"]:best[aid]=val
     return sorted(best.values(),key=lambda d:(-d["score"],-d["title_score"], d["anidb_id"]))[:10]
 
@@ -311,6 +381,6 @@ def choose_candidate(ranked: list[dict], *, folder: str, parsed: list[EpisodeInf
     # Otherwise 14..25 could be silently mapped to the wrong season's episode IDs.
     if RE_PART.search(folder) and not ("part 2" in top["title"].casefold() or "dai 2 bu" in top["title"].casefold()):
         return None,"review","part/cour boundary requires independent identification"
-    if season_hint(clean_release_title(folder)) and top["score"]<0.91:
+    if (season_hint(clean_release_title(folder)) or any(p.season and p.season > 1 for p in parsed)) and top["score"]<0.91:
         return None,"review","season requires additional evidence"
     return int(top["anidb_id"]),"auto_evidence","title + context matched"
