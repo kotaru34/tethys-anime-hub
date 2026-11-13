@@ -192,6 +192,11 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
             anchor=None
         if anchor is not None and not ("OVA" in folder.upper() and len(files)>2):
             selected,mode,reason=anchor,"prior_exact_title","Shoko exact title/alias match in original scan"
+            if not any(c["anidb_id"] == anchor for c in ranked):
+                original_candidate = next((c for c in candidates if int(c["anidb_id"]) == anchor), None)
+                if original_candidate:
+                    ranked.append({**original_candidate, "score": 0.0, "title_score": 0.0,
+                                   "source": "prior_shoko_exact_title"})
         if folder in group_overrides:
             requested=int(group_overrides[folder])
             selected=requested if requested>0 else None
@@ -230,7 +235,8 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
                          "mode":local_mode,"reason":note})
         out["groups"].append({"folder":folder,"title_guess":clean_release_title(folder),
             "queries":guesses,"selected_anidb_id":selected,"mode":mode,"reason":reason,
-            "candidates":ranked,"count":len(rows),"files":rows})
+            "candidates":ranked,"prior_exact_evidence":bool(anchor and mode=="prior_exact_title"),
+            "count":len(rows),"files":rows})
     from refinements import refine
     return refine(out, catalog=catalog)
 
