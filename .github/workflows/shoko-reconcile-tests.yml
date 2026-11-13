@@ -1,0 +1,29 @@
+name: Shoko Reconciler tests
+
+on:
+  push:
+    paths:
+      - "tools/shoko_reconcile/**"
+      - ".github/workflows/shoko-reconcile-tests.yml"
+  pull_request:
+    paths:
+      - "tools/shoko_reconcile/**"
+      - ".github/workflows/shoko-reconcile-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Syntax check
+        run: python -m compileall -q tools/shoko_reconcile
+      - name: Shoko offline regression tests
+        run: python -m unittest discover -s tools/shoko_reconcile/tests -v
