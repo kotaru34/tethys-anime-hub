@@ -188,7 +188,7 @@ replacing its existing ExecStart or changing its API-key configuration**:
 ```bash
 # Run as root inside the Shoko LXC, after pulling the updated repo.
 install -d -m 755 /etc/systemd/system/shoko-reconcile-events.service.d
-printf '%s\\n' '[Service]' 'Environment=SHOKO_RECONCILE_APPLY=LINK' \\
+printf '%s\n' '[Service]' 'Environment=SHOKO_RECONCILE_APPLY=LINK' \
   > /etc/systemd/system/shoko-reconcile-events.service.d/30-auto-link.conf
 systemctl daemon-reload
 systemctl restart shoko-reconcile-events.service
