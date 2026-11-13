@@ -17,7 +17,7 @@ FIXES = [(778, 1), (779, 2)]
 EXPECTED_RELEASE = "Go-Toubun no Hanayome~ - AniLibria.TV"
 
 
-def inspect(api):
+def inspect(api, target_type="Episode"):
     series = api.local_series(NEW_AID)
     sid = _series_id_from_api(series)
     if not sid or int((series.get("IDs") or {}).get("AniDB") or -1) != NEW_AID:
@@ -45,13 +45,13 @@ def inspect(api):
         if any(ep.get("Source") == "AniDB"
                for ref in refs for ep in ref.get("EpisodeIDs") or []):
             raise RuntimeError(f"File {fid} has a native AniDB link; manual correction forbidden")
-        if ("Episode", number) not in episodes:
+        if (target_type, number) not in episodes:
             raise RuntimeError(
-                f"2024 Shoko series lacks E{number:02d}; "
+                f"2024 Shoko series lacks {target_type}{number:02d}; "
                 f"currently available episodes: {sorted(episodes)}. "
                 "Do not relink until both target episodes are available."
             )
-        checks.append({"file_id": fid, "episode": number, "status": "ready"})
+        checks.append({"file_id": fid, "episode": number, "target_type": target_type, "status": "ready"})
     return sid, checks
 
 
@@ -63,11 +63,14 @@ def main():
                         help="Force AniDB data fetch, subject to AniDB cooldown/bans")
     parser.add_argument("--diagnose", action="store_true",
                         help="Print 2024 series episodes and queue state without changes")
+    parser.add_argument("--target-type", choices=("Episode", "Other"), default="Episode",
+                        help="AniDB target kind; Other uses O-prefix, select only after inspecting actual titles")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm", default="")
     args = parser.parse_args()
-    if args.apply and args.confirm != "RELINK":
-        parser.error("--apply requires --confirm RELINK")
+    required = "RELINK_OTHER" if args.target_type == "Other" else "RELINK"
+    if args.apply and args.confirm != required:
+        parser.error(f"--apply --target-type {args.target_type} requires --confirm {required}")
     key = os.getenv("SHOKO_API_KEY")
     if not key:
         parser.error("SHOKO_API_KEY must be configured")
@@ -81,7 +84,7 @@ def main():
         else:
             queued = api.refresh_series(NEW_AID)
         print(f"AniDB 18603 metadata refresh requested (API result: {queued}). "
-              "Do not relink until the episode list contains E01 and E02.")
+              "Inspect AniDB episode titles/types via --diagnose before relinking.")
         return
     if args.diagnose:
         series = api.local_series(NEW_AID)
@@ -92,21 +95,40 @@ def main():
         print(f"AniDB 18603 -> Shoko series {sid}")
         episodes = api.available_episodes(sid)
         print(f"Available episodes: {sorted(episodes)}")
+        # AniDB may represent the full theatrical edit as E01 but its
+        # two-part broadcast edit as O01/O02. Titles are decisive.
+        records = api.pages(f"/Series/{sid}/Episode", {
+            "includeDataFrom": "AniDB",
+            "includeMissing": "True", "includeUnaired": "True",
+            "includeHidden": "True", "includeManuallyLinked": "True",
+        }, size=100)
+        details = []
+        for record in records:
+            info = record.get("AniDB") or {}
+            details.append({
+                "type": info.get("Type"), "number": info.get("EpisodeNumber"),
+                "title": info.get("Title"), "air_date": info.get("AirDate"),
+                "duration": record.get("Duration"),
+                "anidb_episode_id": info.get("ID"),
+            })
+        print("AniDB episode details:")
+        print(json.dumps(sorted(details, key=lambda x: (str(x["type"]), x["number"] or 0)),
+                         ensure_ascii=False, indent=2))
         queue = api.request("GET", "/Queue")
         print(f"Queue: TotalCount={queue.get('TotalCount')} "
               f"WaitingCount={queue.get('WaitingCount')} "
               f"BlockedCount={queue.get('BlockedCount')} "
               f"Executing={len(queue.get('CurrentlyExecuting') or [])}")
         return
-    sid, checks = inspect(api)
+    sid, checks = inspect(api, target_type=args.target_type)
     print(json.dumps({"2024_shoko_series_id": sid, "checks": checks}, indent=2))
     if args.apply:
         for row in checks:
             if row["status"] != "ready":
                 continue
             # Shoko validates the target episode and replaces old non-AniDB refs.
-            api.link(row["file_id"], sid, row["episode"], "Episode")
-            print(f"Submitted File {row['file_id']} -> AniDB 18603 E{row['episode']:02}")
+            api.link(row["file_id"], sid, row["episode"], args.target_type)
+            print(f"Submitted File {row['file_id']} -> AniDB 18603 {args.target_type}{row['episode']:02}")
         print("Check completion in Shoko; submissions are queued jobs, not finished links.")
 
 

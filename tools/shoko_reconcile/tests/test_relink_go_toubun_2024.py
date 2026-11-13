@@ -33,6 +33,18 @@ class RelinkTests(unittest.TestCase):
         self.assertEqual(sid, 22)
         self.assertEqual([r["status"] for r in rows], ["ready", "ready"])
         self.assertTrue(all(m == "GET" for m, _, _ in api.actions))
+    def test_other_episodes_require_explicit_target_type(self):
+        class AniDBSplitAPI(API):
+            def available_episodes(self, sid):
+                return {("Episode", 1), ("Other", 1), ("Other", 2)}
+        api = AniDBSplitAPI()
+        with self.assertRaises(RuntimeError):
+            inspect(api)
+        sid, rows = inspect(api, target_type="Other")
+        self.assertEqual(sid, 22)
+        self.assertEqual([r["target_type"] for r in rows], ["Other", "Other"])
+        self.assertEqual([r["status"] for r in rows], ["ready", "ready"])
+
     def test_mismatched_series_fails_closed(self):
         api = API()
         api.files[778]["SeriesIDs"][0]["SeriesID"]["AniDB"] = 18603
