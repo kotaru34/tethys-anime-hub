@@ -228,7 +228,7 @@ def contextual_candidate_season(title: str, release: str) -> int | None:
     explicit = season_hint(title)
     if explicit is not None:
         return explicit
-    tail = re.search(r"(?i)(?:[\\s:._-]+part[\\s._-]*([2-9])|[\\s:._-]+([2-9]))[!.\\s]*$", title)
+    tail = re.search(r"(?i)(?:[\s:._-]+part[\s._-]*([2-9])|[\s:._-]+([2-9]))[!.\s]*$", title)
     if tail:
         n = int(tail.group(1) or tail.group(2))
         stem = title[:tail.start()].strip(" ._-:!")
@@ -307,7 +307,7 @@ def target_season_supported(group: dict, row: dict) -> bool:
     if (candidate_season is None and row.get("mode") == "prior_exact_title"
             and group.get("prior_exact_evidence")
             and year_hint(str(target.get("title") or ""))):
-        stem = re.sub(r"\\s*\\((?:19|20)\\d{2}\\)\\s*$", "",
+        stem = re.sub(r"\s*\((?:19|20)\d{2}\)\s*$", "",
                       str(target.get("title") or ""))
         if similarity(base_title(group.get("folder", "")), stem) >= 0.82:
             return True
