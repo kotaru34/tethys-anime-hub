@@ -171,6 +171,27 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
         initial = sum(bool(r.get("target_anidb_id") and r.get("episode") and r.get("mode") not in ("review", "extra", "episode_review")) for r in rows)
         if g.get("mode") in ("approved_override", "approved_file_override"):
             continue
+        # Names of related specials can be near-identical while representing
+        # different productions (e.g. 2023 ∽ vs 2024 *). Even an exact title
+        # match from a release folder cannot prove which series was downloaded.
+        name = g["folder"].casefold()
+        has_special_marker = any(x in name for x in ("[ova]", " ova ", "special", "∽", "＊", "~", "*"))
+        known_candidates = g.get("candidates") or []
+        selected = g.get("selected_anidb_id")
+        alternatives = [
+            c for c in known_candidates
+            if c.get("anidb_id") != selected and float(c.get("score") or 0) >= 0.60
+        ]
+        if has_special_marker and selected and alternatives:
+            for r in rows:
+                if r.get("mode") != "extra":
+                    r["target_anidb_id"] = None
+                    r["mode"] = "episode_review"
+                    r["reason"] = "ambiguous franchise special; external release/year evidence required"
+            g["selected_anidb_id"] = None
+            g["mode"] = "review"
+            g["reason"] = "ambiguous franchise special; do not infer work from punctuation"
+            continue
         crosswalk = _choose_public_crosswalk(g, records)
         ranked = sorted(((round(_title_candidate_confidence(g, c), 5), c) for c in g.get("candidates", [])), key=lambda p: -p[0])
         top_score, best = ranked[0] if ranked else (-999, None)

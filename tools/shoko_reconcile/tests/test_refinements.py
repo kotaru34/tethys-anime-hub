@@ -34,6 +34,24 @@ class RefinementTests(unittest.TestCase):
         q = synthetic("Chichi wa Eiyuu 3 [WEB-DL 1080p]", [], [("Chichi wa Eiyuu 3 - 01.mkv", 1, "Episode")])
         self.assertIsNone(refine(q)["groups"][0]["files"][0]["target_anidb_id"])
 
+    def test_archived_go_toubun_special_2024_needs_external_release_evidence(self):
+        # Actual archived v2.2 candidates: selected 17968 for ~, but the
+        # release was 2024 (AniDB 18603). Never silently apply the old ID.
+        name = "Go-Toubun no Hanayome~ - AniLibria.TV [WEBRip 1080p HEVC]"
+        candidates = [
+            {"anidb_id": 17968, "title": "Go-Toubun no Hanayome~",
+             "type": "SPECIAL", "score": 1.0},
+            {"anidb_id": 18603, "title": "5-toubun no Hanayome*",
+             "type": "SPECIAL", "score": 0.698},
+        ]
+        p = synthetic(name, candidates, [("Episode_[01].mkv", 1, "Episode"),
+                                         ("Episode_[02].mkv", 2, "Episode")],
+                      selected=17968, mode="auto_evidence")
+        rows = refine(p)["groups"][0]["files"]
+        self.assertEqual([r["target_anidb_id"] for r in rows], [None, None])
+        self.assertTrue(all(r["mode"] == "episode_review" for r in rows))
+        self.assertIsNone(p["groups"][0]["selected_anidb_id"])
+
     def test_second_season_not_confused_with_first(self):
         p = synthetic("Kanojo Okarishimasu 2nd Season - AniLibria.TV [WEBRip 1080p HEVC]", [
             {"anidb_id": 15299, "title": "Kanojo, Okarishimasu", "type": "TV", "episodes": 12},
