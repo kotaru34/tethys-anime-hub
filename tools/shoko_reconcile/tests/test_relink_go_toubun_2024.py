@@ -21,6 +21,13 @@ class API:
         self.actions = []
     def local_series(self, aid): return {"IDs": {"AniDB": 18603, "ID": 22}}
     def available_episodes(self, sid): return {("Episode", 1), ("Episode", 2)}
+    def pages(self, path, params, size=100):
+        return [
+            {"AniDB": {"Type": "Other", "EpisodeNumber": 1, "ID": 290245,
+                       "Title": "Operation Quintuplets (Part 1)"}},
+            {"AniDB": {"Type": "Other", "EpisodeNumber": 2, "ID": 290246,
+                       "Title": "Operation Quintuplets (Part 2)"}},
+        ]
     def request(self, method, path, params=None):
         self.actions.append((method, path, params))
         return self.files[int(path.rsplit("/", 1)[1])]
@@ -44,6 +51,15 @@ class RelinkTests(unittest.TestCase):
         self.assertEqual(sid, 22)
         self.assertEqual([r["target_type"] for r in rows], ["Other", "Other"])
         self.assertEqual([r["status"] for r in rows], ["ready", "ready"])
+
+    def test_mismatch_in_other_episode_identity_is_rejected(self):
+        class WrongOther(API):
+            def pages(self, path, params, size=100):
+                rows = super().pages(path, params, size=size)
+                rows[1]["AniDB"]["ID"] = 12345
+                return rows
+        with self.assertRaises(RuntimeError):
+            inspect(WrongOther(), target_type="Other")
 
     def test_mismatched_series_fails_closed(self):
         api = API()

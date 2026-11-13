@@ -15,6 +15,10 @@ OLD_AID = 17968   # 2023 specials
 NEW_AID = 18603   # 2024 specials
 FIXES = [(778, 1), (779, 2)]
 EXPECTED_RELEASE = "Go-Toubun no Hanayome~ - AniLibria.TV"
+EXPECTED_OTHER_EPISODES = {
+    1: (290245, "Operation Quintuplets (Part 1)"),
+    2: (290246, "Operation Quintuplets (Part 2)"),
+}
 
 
 def inspect(api, target_type="Episode"):
@@ -23,6 +27,27 @@ def inspect(api, target_type="Episode"):
     if not sid or int((series.get("IDs") or {}).get("AniDB") or -1) != NEW_AID:
         raise RuntimeError("2024 AniDB 18603 is not loaded in Shoko; refresh it first")
     episodes = api.available_episodes(sid)
+    if target_type == "Other":
+        # Confirm the actual 2024 split-release metadata, not simply the
+        # existence of O01/O02, before replacing two prior manual links.
+        rows = list(api.pages(f"/Series/{sid}/Episode", {
+            "includeDataFrom": "AniDB", "includeMissing": "True",
+            "includeUnaired": "True", "includeHidden": "True",
+            "includeManuallyLinked": "True",
+        }, size=100))
+        actual = {
+            int(meta["EpisodeNumber"]): (int(meta["ID"]), str(meta.get("Title") or ""))
+            for row in rows
+            if (meta := row.get("AniDB") or {}).get("Type") == "Other"
+            and isinstance(meta.get("EpisodeNumber"), int)
+            and isinstance(meta.get("ID"), int)
+        }
+        for number, required in EXPECTED_OTHER_EPISODES.items():
+            if actual.get(number) != required:
+                raise RuntimeError(
+                    f"AniDB 18603 O{number:02d} metadata differs from verified "
+                    f"episode ID/title. Expected {required}, found {actual.get(number)}"
+                )
     checks = []
     for fid, number in FIXES:
         file = api.request("GET", f"/File/{fid}", {"include": "XRefs"})
