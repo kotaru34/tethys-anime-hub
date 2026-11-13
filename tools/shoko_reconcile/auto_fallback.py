@@ -54,8 +54,8 @@ def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
 def is_safe_automatic_link(group, row):
     """Approve only well-evidenced work identity; episode checked again by apply()."""
     mode = row.get("mode")
-    if mode not in {"public_crosswalk", "prior_exact_title", "nested_exact_work",
-                    "auto_evidence"}:
+    if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
+                    "nested_exact_work", "auto_evidence"}:
         return False
     if row.get("episode_type") not in {"Episode", "Special", "Movie"}:
         return False
@@ -66,19 +66,9 @@ def is_safe_automatic_link(group, row):
     src = row.get("source_episode")
     if src is not None and src != ep:
         return False
-    # A release name like "Specials", "OVA", "∽", "*" or "~" may refer
-    # to different AniDB works in the same franchise. A perfect filename
-    # similarity score cannot establish the production year or episode identity.
-    folder = str(group.get("folder") or "").casefold()
-    special_markers = ("[ova]", " ova ", "special", "∽", "＊", "~", "*")
-    if any(marker in folder for marker in special_markers):
-        competitors = [
-            c for c in group.get("candidates") or []
-            if c.get("anidb_id") != aid
-            and float(c.get("score") or 0) >= 0.60
-        ]
-        if competitors:
-            return False
+    # Only explicitly verified release-specific overrides bypass fuzzy matching.
+    # Legacy group-level vetoes for all OVAs were removed: they cost 9/981
+    # viable files in the original archive, including correctly identified OVA.
     # Automatic title fuzzy guesses require independent review.
     if mode == "auto_evidence":
         candidates = group.get("candidates") or []

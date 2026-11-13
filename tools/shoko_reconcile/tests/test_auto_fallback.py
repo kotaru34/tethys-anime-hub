@@ -38,23 +38,19 @@ class AutoFallbackTests(unittest.TestCase):
         ])
         self.assertFalse(is_safe_automatic_link(group, row))
 
-    def test_different_special_productions_must_not_collapse_to_same_episode(self):
-        # Based on archived offline candidate scores, without private paths.
-        # 2023 series=17968, 2024 series=18603; misleading "~" in release name.
-        for mode in ("auto_evidence", "public_crosswalk", "prior_exact_title"):
-            row = self.row(778, 17968, 1, mode=mode)
-            group = {"folder": "Five Sisters ~ Specials 2 - Release Group",
-                     "candidates": [
-                         {"anidb_id": 17968, "score": 1.0, "title": "Five Sisters ∽"},
-                         {"anidb_id": 18603, "score": 0.698, "title": "Five Sisters *"},
-                     ],
-                     "files": [row]}
-            self.assertFalse(is_safe_automatic_link(group, row))
-        # A safe explicit matching workflow can still link the correct work.
-        clean = self.group([self.row(mode="prior_exact_title")], [
-            {"anidb_id": 17968, "score": 1.0}
-        ])
-        self.assertTrue(is_safe_automatic_link(clean, self.row(mode="prior_exact_title")))
+    def test_exact_verified_release_is_permitted_without_general_ova_veto(self):
+        # Verified series identity is supplied by an exact release-specific
+        # publisher crosswalk rather than a similarity score.
+        for fid in (778, 779):
+            row = self.row(fid, 18603, 1, mode="approved_release")
+            self.assertTrue(is_safe_automatic_link(
+                {"folder": "Go-Toubun no Hanayome~ - AniLibria.TV [WEBRip 1080p HEVC]",
+                 "candidates": []}, row))
+        row = self.row(417, 17968, 1, mode="auto_evidence")
+        group = {"folder": "5-toubun no Hanayome [OVA] - AniLiberty [WEBRip 1080p HEVC]",
+                 "candidates": [{"anidb_id": 17968, "score": 1.0},
+                                {"anidb_id": 18603, "score": 0.7789}]}
+        self.assertTrue(is_safe_automatic_link(group, row))
 
     def test_fuzzy_and_trailer_are_manual(self):
         self.assertFalse(is_safe_automatic_link(self.group([]), self.row(mode="review")))

@@ -34,9 +34,9 @@ class RefinementTests(unittest.TestCase):
         q = synthetic("Chichi wa Eiyuu 3 [WEB-DL 1080p]", [], [("Chichi wa Eiyuu 3 - 01.mkv", 1, "Episode")])
         self.assertIsNone(refine(q)["groups"][0]["files"][0]["target_anidb_id"])
 
-    def test_archived_go_toubun_special_2024_needs_external_release_evidence(self):
-        # Actual archived v2.2 candidates: selected 17968 for ~, but the
-        # release was 2024 (AniDB 18603). Never silently apply the old ID.
+    def test_archived_go_toubun_special_2024_corrected_without_extra_unknowns(self):
+        # The publisher's 2024 release (AniDB 18603) was incorrectly guessed
+        # as the 2023 specials (17968); preserve both episodes as recognized.
         name = "Go-Toubun no Hanayome~ - AniLibria.TV [WEBRip 1080p HEVC]"
         candidates = [
             {"anidb_id": 17968, "title": "Go-Toubun no Hanayome~",
@@ -48,9 +48,20 @@ class RefinementTests(unittest.TestCase):
                                          ("Episode_[02].mkv", 2, "Episode")],
                       selected=17968, mode="auto_evidence")
         rows = refine(p)["groups"][0]["files"]
-        self.assertEqual([r["target_anidb_id"] for r in rows], [None, None])
-        self.assertTrue(all(r["mode"] == "episode_review" for r in rows))
-        self.assertIsNone(p["groups"][0]["selected_anidb_id"])
+        self.assertEqual([r["target_anidb_id"] for r in rows], [18603, 18603])
+        self.assertTrue(all(r["mode"] == "approved_release" for r in rows))
+        self.assertEqual(p["metrics"]["potential_links_before_api_validation"], 2)
+
+    def test_exact_release_rule_does_not_degrade_unrelated_ova(self):
+        p = synthetic("[SubsPlease] 1080p Tensei shitara Slime Datta Ken OVA FanVoxUa",
+                      [{"anidb_id": 14526, "title": "Tensei Shitara Slime Datta Ken OVA",
+                        "type": "OVA", "episodes": 5, "score": 1.0},
+                       {"anidb_id": 13871, "title": "Tensei Shitara Slime Datta Ken",
+                        "type": "TV", "episodes": 24, "score": 0.9146}],
+                      [(f"OVA_{i:02d}.mkv", i, "Episode") for i in range(1, 6)],
+                      selected=14526, mode="auto_evidence")
+        out = refine(p)
+        self.assertEqual(out["metrics"]["potential_links_before_api_validation"], 5)
 
     def test_second_season_not_confused_with_first(self):
         p = synthetic("Kanojo Okarishimasu 2nd Season - AniLibria.TV [WEBRip 1080p HEVC]", [
