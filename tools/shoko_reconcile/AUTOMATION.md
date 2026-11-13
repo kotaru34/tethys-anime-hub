@@ -39,7 +39,7 @@ External program field: `/usr/local/bin/notify-shoko.sh`. Adapt the completion h
 
 ## Conservative fallback after Shoko failed
 
-One-shot `auto_fallback.py` on **Shoko CT** checks only current `Unrecognized` API records. On first observation it records file path, size, mtime and first-seen time. On later runs, after at least 15 minutes with unchanged file state **and an idle Shoko job queue**, it prepares a **new** plan, restricts links to strong independent identity evidence (curated public crosswalk, verified exact title, or unambiguous high-score Shoko candidate), and lets the existing `apply()` re-check live File ID/path/AniDB ID/episode type+number. Ambiguous franchises, specials and shifted episode numbers remain for review. No forced false links for achieving 100%.
+One-shot `auto_fallback.py` on **Shoko CT** checks only current `Unrecognized` API records. On first observation it records file path, size, mtime and first-seen time. On later runs, after at least 15 minutes with unchanged file state **and an idle Shoko job queue**, it prepares a **new** plan, restricts links to strong independent identity evidence (curated public crosswalk, verified exact title, or unambiguous high-score Shoko candidate), and lets the existing `apply()` re-check live File ID/path/AniDB ID/episode type+number. Ambiguous matches and shifted episode numbers remain for review. A verified publisher-specific 2024 Go-Toubun override preserves recall; do not use a blanket OVA veto. No forced false links for achieving 100%.
 
 In Shoko CT:
 ```sh

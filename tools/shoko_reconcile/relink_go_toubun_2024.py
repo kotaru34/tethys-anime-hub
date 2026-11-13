@@ -46,7 +46,11 @@ def inspect(api):
                for ref in refs for ep in ref.get("EpisodeIDs") or []):
             raise RuntimeError(f"File {fid} has a native AniDB link; manual correction forbidden")
         if ("Episode", number) not in episodes:
-            raise RuntimeError(f"2024 Shoko series lacks episode {number}")
+            raise RuntimeError(
+                f"2024 Shoko series lacks E{number:02d}; "
+                f"currently available episodes: {sorted(episodes)}. "
+                "Do not relink until both target episodes are available."
+            )
         checks.append({"file_id": fid, "episode": number, "status": "ready"})
     return sid, checks
 
@@ -55,6 +59,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=os.getenv("SHOKO_URL", "http://127.0.0.1:8111"))
     parser.add_argument("--refresh", action="store_true", help="Request new 2024 series metadata")
+    parser.add_argument("--force-refresh", action="store_true",
+                        help="Force AniDB data fetch, subject to AniDB cooldown/bans")
+    parser.add_argument("--diagnose", action="store_true",
+                        help="Print 2024 series episodes and queue state without changes")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm", default="")
     args = parser.parse_args()
@@ -64,9 +72,31 @@ def main():
     if not key:
         parser.error("SHOKO_API_KEY must be configured")
     api = ShokoAPI(args.url, key)
-    if args.refresh:
-        api.refresh_series(NEW_AID)
-        print("Metadata refresh requested for AniDB 18603. Wait for Shoko jobs, then run preflight.")
+    if args.refresh or args.force_refresh:
+        if args.force_refresh:
+            queued = api.request("POST", f"/Series/AniDB/{NEW_AID}/Refresh", {
+                "force": "true", "immediate": "true", "createSeriesEntry": "true",
+                "downloadRelations": "false",
+            })
+        else:
+            queued = api.refresh_series(NEW_AID)
+        print(f"AniDB 18603 metadata refresh requested (API result: {queued}). "
+              "Do not relink until the episode list contains E01 and E02.")
+        return
+    if args.diagnose:
+        series = api.local_series(NEW_AID)
+        sid = _series_id_from_api(series)
+        if not sid:
+            print("AniDB 18603 not yet loaded in local Shoko database")
+            return
+        print(f"AniDB 18603 -> Shoko series {sid}")
+        episodes = api.available_episodes(sid)
+        print(f"Available episodes: {sorted(episodes)}")
+        queue = api.request("GET", "/Queue")
+        print(f"Queue: TotalCount={queue.get('TotalCount')} "
+              f"WaitingCount={queue.get('WaitingCount')} "
+              f"BlockedCount={queue.get('BlockedCount')} "
+              f"Executing={len(queue.get('CurrentlyExecuting') or [])}")
         return
     sid, checks = inspect(api)
     print(json.dumps({"2024_shoko_series_id": sid, "checks": checks}, indent=2))

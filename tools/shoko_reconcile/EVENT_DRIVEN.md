@@ -6,7 +6,7 @@ Shoko **5.3.3** has a real-time SignalR endpoint at `/signalr/aggregate?feeds=sh
 - `Queue:QueueStateChanged`: emitted when the Shoko job queue changes; wait for **idle**.
 - `Queue:OnConnected`: initial status sent upon subscription.
 - The service also inspects existing Unrecognized files on startup or reconnect to catch missed events. It never runs an unconditional recurring scan.
-- After event and a grace period for files to finish writing, the fallback revalidates on disk, Shoko API, series identity and episode type. Files with ambiguous sequels/specials are **excluded**.
+- After event and a grace period for files to finish writing, the fallback revalidates on disk, Shoko API, series identity and episode type. Low-confidence matches are excluded. An exact, publisher-verified release override resolves the 2024 Go-Toubun specials without excluding valid 2023 specials or Tensura OVA.
 - The downloader still invokes `GET /api/v3/Action/ImportNewFiles` upon torrent completion. This is separate from the fallback and is required because Shoko's FileSystemWatcher is disabled after its known crash.
 
 ## Shoko CT installation
@@ -69,10 +69,12 @@ git pull --ff-only
 cd tools/shoko_reconcile
 # With SHOKO_API_KEY exported:
 python3 relink_go_toubun_2024.py                 # dry-run, strict file ID/path/old link checks
-python3 relink_go_toubun_2024.py --refresh       # only if new AniDB series not loaded
+python3 relink_go_toubun_2024.py --diagnose      # inspect episode type/number and Shoko job queue
+python3 relink_go_toubun_2024.py --refresh       # if episodes have not appeared after initial refresh
+python3 relink_go_toubun_2024.py --force-refresh # optional if cached AniDB episode list stays incomplete
 python3 relink_go_toubun_2024.py --apply --confirm RELINK # only after dry-run success
 ```
 
 `LinkFromSeries` removes old manual cross-references and queues new manual links through Shoko's own API. Do not call delete-file endpoints; MKVs and torrents must remain untouched.
 
-The matching rule treats franchise specials/OVA plus nearby alternative titles as ambiguous, regardless of a perfect title similarity score. **An explicit public source confirming a release's year is stronger than filename punctuation.** For future verified one-off corrections, use user-curated private overrides instead of global fuzzy title normalization.
+The matching rule no longer rejects all franchise specials/OVA; a regression analysis of 83 archived release groups found that broad rule suppressed 9 valid links (981 -> 972). The precise verified-release override preserves 981 potential links (57 deferred) while correcting IDs 778 and 779 from 17968 to 18603. **An explicit public source confirming a release's year is stronger than filename punctuation.** For future verified one-off corrections, use user-curated private overrides instead of global fuzzy title normalization.
