@@ -248,6 +248,13 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                     if "youjo shenki" in r["path"].casefold() and "youjo senki" in g["folder"].casefold():
                         continue
                     r["target_anidb_id"] = aid
+                    # Identifying a work does not establish its episode.
+                    # Preserve a visible review state for unnumbered files,
+                    # even when the title match is otherwise unambiguous.
+                    if not isinstance(r.get("episode"), int) or r["episode"] <= 0:
+                        r["mode"] = "episode_review"
+                        r["reason"] = "series identified, but episode identity is unverified"
+                        continue
                     r["mode"] = "public_crosswalk" if crosswalk else "strong_context"
                     r["reason"] = reason
             if g.get("mode") == "review":
