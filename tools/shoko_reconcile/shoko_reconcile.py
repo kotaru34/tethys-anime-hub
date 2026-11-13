@@ -187,6 +187,8 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
                                               min_score=0.79 if aggressive else 0.85)
         if season_conflict:
             selected,mode,reason=None,"review","conflicting or mixed season evidence across files"
+        if original.get("mixed_season_source") and original.get("season_bucket") is None:
+            selected,mode,reason=None,"review","untagged file in a mixed-season directory"
         anchor=_selected_anchor(original,candidates)
         if season_conflict:
             anchor=None
@@ -236,6 +238,8 @@ def analyze_report(source: dict, *, catalog=None, overrides=None, aggressive=Fal
         out["groups"].append({"folder":folder,"title_guess":clean_release_title(folder),
             "queries":guesses,"selected_anidb_id":selected,"mode":mode,"reason":reason,
             "candidates":ranked,"prior_exact_evidence":bool(anchor and mode=="prior_exact_title"),
+            "mixed_season_source":bool(original.get("mixed_season_source")),
+            "season_bucket":original.get("season_bucket"),
             "count":len(rows),"files":rows})
     from refinements import refine
     return refine(out, catalog=catalog)
@@ -267,9 +271,11 @@ def prepare(api: ShokoAPI, overrides: dict, catalog=None, aggressive=False):
          "total_unrecognized_at_scan":len(files),"groups":[]}
     search_cache={}
     for folder,media in sorted(group_unrecognized(files).items()):
-        for bucket, subset in split_mixed_season_media(folder, media):
+        partitions = split_mixed_season_media(folder, media)
+        for bucket, subset in partitions:
             group=_group_from_raw(folder,subset)
-            if bucket is not None:
+            if len(partitions) > 1:
+                group["mixed_season_source"] = True
                 group["season_bucket"] = bucket
             guesses=season_aware_queries(folder,group["files"],main_title_candidates(folder,group["files"]))
             results={}
