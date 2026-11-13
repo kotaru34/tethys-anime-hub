@@ -54,11 +54,18 @@ def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
 
 def is_safe_automatic_link(group, row):
     """Approve only well-evidenced work identity; episode checked again by apply()."""
-    if not target_season_supported(group, row):
-        return False
     mode = row.get("mode")
+    # A local sibling consensus is anchored by Shoko's *existing* exact-work
+    # XRefs and same-season, same-directory episode files, not fuzzy title
+    # search. Season checks run in promote_linked_siblings() before marking.
+    if mode == "sibling_consensus":
+        if row.get("episode_type") != "Episode" or int(row.get("sibling_evidence_count") or 0) < 2:
+            return False
+    elif not target_season_supported(group, row):
+        return False
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
-                    "nested_exact_work", "auto_evidence", "strong_context"}:
+                    "nested_exact_work", "auto_evidence", "strong_context",
+                    "sibling_consensus"}:
         return False
     # AniDB "Other" is *not* normally safe for auto matching. Allow O01/O02
     # only for an explicit publisher-verified release override.
@@ -180,6 +187,16 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
         summary["shoko_queue_busy"] = True
         return summary
     plan = prepare(api, overrides={}, catalog=catalog, aggressive=False)
+    # For a long-running RSS release, already recognized E01/E02 in the same
+    # exact directory are stronger independent work evidence than a fuzzy
+    # title match. Importing XRefs is read-only; never weaken safety checks.
+    try:
+        from local_siblings import promote_linked_siblings
+        summary["sibling_consensus_promoted"] = promote_linked_siblings(api, plan, eligible)
+    except Exception as exc:
+        # A missing/unsupported XRefs list should never prevent the existing
+        # safe-title policy from doing its work.
+        summary["sibling_evidence_error"] = f"{type(exc).__name__}: {exc}"
     # Keep a current, read-only-to-operators inspection snapshot even when
     # *nothing* qualifies for auto-link. This is the critical case when
     # unknowns exceed the configured quality target.
