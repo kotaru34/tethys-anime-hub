@@ -301,7 +301,7 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None):
                 deferred+=1;continue
             if not target_season_supported(group, row):
                 deferred+=1
-                print(f"SKIP unsupported season file={row[\'file_id\']} target={aid}",file=sys.stderr)
+                print(f"SKIP unsupported season file={row.get('file_id')} target={aid}",file=sys.stderr)
                 continue
             fid=int(row["file_id"])
             source=current.get(fid)
