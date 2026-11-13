@@ -25,5 +25,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Syntax check
         run: python -m compileall -q tools/shoko_reconcile
+      - name: Bash syntax check for Torrenya hooks and installer
+        run: bash -n tools/shoko_reconcile/notify-shoko.sh tools/shoko_reconcile/install-torrenya-hook.sh tools/shoko_reconcile/torrenya-qbt-vfork-watchdog.sh
       - name: Shoko offline regression tests
         run: python -m unittest discover -s tools/shoko_reconcile/tests -v

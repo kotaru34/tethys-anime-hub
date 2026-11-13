@@ -225,3 +225,39 @@ Shoko API key; do **not** make the key world-readable. Observe requests and
 errors with `tail -f /var/lib/torrenya/shoko-notify/worker.log`. The pending
 state contains `<unix-time> <event-id>`; a zero time indicates no outstanding
 work. No qBittorrent restart or change to its configured hook path is required.
+
+### One-time recovery/install on Torrenya CT 540
+
+If the old hook has been temporarily replaced with `#!/bin/sh; exit 0`, install
+the known-good `Anime`-tagged debounce version and provision its writable state
+with a single root-side command inside CT 540:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kotaru34/tethys-anime-hub/main/tools/shoko_reconcile/install-torrenya-hook.sh | bash
+```
+
+The installer: restricts the API key ACL to `kotaru`, prepares
+`/var/lib/torrenya/shoko-notify` owned by `kotaru` with mode `0700`,
+backs up and replaces `notify-shoko.sh` with a **pinned** working revision,
+and installs `torrenya-qbt-vfork-watchdog.timer` (checks every ~30 seconds).
+The watchdog never calls Shoko: it only looks for the exact observed
+qBittorrent WebUI hang signature (main thread in `kernel_clone`, unresponsive
+localhost HTTP, QProcess double-fork chain older than 45 seconds) and sends
+SIGKILL only to the stuck grandchild, leaving the main qBittorrent PID intact.
+No qBittorrent restart and no torrent/session writes are performed by the
+installer. The watchdog mitigates one specific known hang; it is **not** a
+general guarantee against every possible Qt/QProcess failure. Its logs are
+tagged `qbt-vfork-watchdog` in journald.
+
+After installation, re-enable the qBittorrent setting `Run external program
+on torrent completion` and set the command to
+`/usr/local/bin/notify-shoko.sh "%G"`. The installer cannot change the
+WebUI preference without a valid authenticated session. Other torrent tags
+are ignored.
+
+The installer prints potential *other* import callers in the Torrenya
+systemd/cron configuration; it intentionally does **not** auto-disable unknown
+services. The Shoko LXC's `shoko-reconcile-events.service` listens to Shoko
+queue events and is not a second import-folder scanner. Confirm no separate
+scheduled ImportNewFiles action exists on either container before declaring
+the entire deployment free of duplicate triggers.
