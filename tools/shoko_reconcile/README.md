@@ -239,6 +239,16 @@ against every rival**, plus the existing source-season and episode checks
 required for `auto_evidence`. The normal `strong_context` 0.91/0.075
 threshold is deliberately **not** enough on its own for unattended linking.
 
+For incrementally downloaded RSS episodes, fallback also queries Shoko's
+**read-only existing file XRefs**. If two **different numbered episodes** in
+the **exact same parent directory** are already linked to exactly one AniDB
+work with non-conflicting source-season evidence, a fresh stable third
+E-numbered episode can inherit that verified *work identity* (not an invented
+AniDB file record). Mixed seasons, conflicting work IDs, unnumbered files,
+OVAs/specials and existing competing title selections remain manual review.
+The link operation still verifies the destination AniDB episode actually
+exists before writing.
+
 Every idle plan run now writes a private inspection snapshot to
 `/var/lib/shoko-reconcile/realtime-plan.review.json` (or the service's
 configured plan base name), including even 100%-rejected plans. The journal
