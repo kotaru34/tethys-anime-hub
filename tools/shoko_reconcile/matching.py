@@ -217,6 +217,26 @@ def main_title_candidates(folder: str, files: list[dict]) -> list[str]:
     return list(dict.fromkeys(x for x in choices if x))[:4]
 
 
+
+def contextual_candidate_season(title: str, release: str) -> int | None:
+    """Recognize numbered sequels only when the *whole* title stem agrees.
+
+    Bare trailing numbers and 'Part N' are contextual: a number may be part
+    of an unrelated anime title, so the release must provide an independently
+    matching franchise stem. Do not assume a bare file name means S1.
+    """
+    explicit = season_hint(title)
+    if explicit is not None:
+        return explicit
+    tail = re.search(r"(?i)(?:[\\s:._-]+part[\\s._-]*([2-9])|[\\s:._-]+([2-9]))[!.\\s]*$", title)
+    if tail:
+        n = int(tail.group(1) or tail.group(2))
+        stem = title[:tail.start()].strip(" ._-:!")
+        if similarity(base_title(release), stem) >= 0.82:
+            return n
+    return None
+
+
 def group_season_evidence(folder: str, files: list[dict]) -> tuple[int | None, bool]:
     """Resolve a consistent season from folder AND per-file SXE markers.
 
@@ -273,10 +293,10 @@ def target_season_supported(group: dict, row: dict) -> bool:
     target = candidates[0]
     candidate_season = target.get("season")
     if candidate_season is None:
-        candidate_season = season_hint(str(target.get("title") or ""))
+        candidate_season = contextual_candidate_season(str(target.get("title") or ""), group.get("folder", ""))
     if candidate_season is None:
         for alias in target.get("aliases") or []:
-            candidate_season = season_hint(str(alias))
+            candidate_season = contextual_candidate_season(str(alias), group.get("folder", ""))
             if candidate_season is not None:
                 break
     # S01 with an exact base title is a permissible implicit S1 signal.
@@ -320,10 +340,10 @@ def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str =
                     raw_score,matched=score,alias
         if raw_score<=0:continue
         type_=str(c.get("type") or c.get("Type") or "Unknown")
-        candidate_s=season_hint(title)
+        candidate_s=contextual_candidate_season(title, folder)
         if candidate_s is None:
             for alias in aliases:
-                candidate_s=season_hint(alias)
+                candidate_s=contextual_candidate_season(alias, folder)
                 if candidate_s:break
         candidate_y=c.get("year") or year_hint(title)
         if hint_s and not candidate_s:
