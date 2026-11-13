@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from auto_fallback import is_safe_automatic_link, keep_safe_rows, stable_unknowns, queue_is_busy
+from auto_fallback import is_safe_automatic_link, keep_safe_rows, stable_unknowns, queue_is_busy, review_diagnostics
 
 
 class AutoFallbackTests(unittest.TestCase):
@@ -29,6 +29,53 @@ class AutoFallbackTests(unittest.TestCase):
         safe, review = keep_safe_rows(plan, {1, 2})
         self.assertEqual(review, 0)
         self.assertEqual(len(safe["groups"][0]["files"]), 2)
+
+    def test_strong_context_requires_same_strict_candidate_evidence_as_auto_evidence(self):
+        strong = self.row(mode="strong_context")
+        strong_group = self.group([strong], [
+            {"anidb_id": 17968, "score": 0.99},
+            {"anidb_id": 14247, "score": 0.78},
+        ])
+        self.assertTrue(is_safe_automatic_link(strong_group, strong))
+        strong_group["candidates"][0]["score"] = 0.97
+        self.assertFalse(is_safe_automatic_link(strong_group, strong))
+        strong_group["candidates"][0]["score"] = 0.99
+        strong_group["candidates"][1]["score"] = 0.85
+        self.assertFalse(is_safe_automatic_link(strong_group, strong))
+
+    def test_strong_context_never_ignores_season_or_episode_offsets(self):
+        group = self.group([self.row(mode="strong_context")])
+        wrong_season = self.row(mode="strong_context")
+        wrong_season["path"] = "Example/Example S02E01.mkv"
+        self.assertFalse(is_safe_automatic_link(group, wrong_season))
+        shifted = self.row(mode="strong_context")
+        shifted["source_episode"] = 13
+        self.assertFalse(is_safe_automatic_link(group, shifted))
+        unknown_episode = self.row(mode="strong_context", episode=None)
+        self.assertFalse(is_safe_automatic_link(group, unknown_episode))
+
+    def test_review_diagnostics_count_reasons_and_group_identity(self):
+        good = self.row(fid=1, mode="strong_context")
+        ambiguous = self.row(fid=2, mode="strong_context")
+        unnumbered = self.row(fid=3, mode="episode_review", episode=None)
+        good_group = self.group([good], [
+            {"anidb_id": 17968, "score": 1.0},
+            {"anidb_id": 14247, "score": 0.6},
+        ])
+        bad_group = self.group([ambiguous, unnumbered], [
+            {"anidb_id": 17968, "score": 0.96},
+            {"anidb_id": 14247, "score": 0.90},
+        ])
+        for row in bad_group["files"]:
+            row["reason"] = "ambiguous new release"
+        plan = {"version": 2, "groups": [good_group, bad_group]}
+        report = review_diagnostics(plan, {1, 2, 3})
+        self.assertEqual(report["review_by_mode"], {
+            "episode_review": 1, "strong_context": 1
+        })
+        self.assertEqual(report["review_by_reason"], {"ambiguous new release": 2})
+        self.assertEqual(report["review_groups_total"], 1)
+        self.assertEqual(report["review_top_groups"][0]["files"], 2)
 
     def test_unverified_other_category_cannot_be_automatically_linked(self):
         row = self.row(100, 18603, 1, mode="public_crosswalk", kind="Other")
