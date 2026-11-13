@@ -179,6 +179,44 @@ python3 shoko_reconcile.py \
 
 **Important:** the archived `--analyze-plan` path rechecks historical decisions, not actual present-day Shoko state, and can correctly defer previously optimistic links. Compare the proposed mappings **by file ID and AniDB identity**, not solely the total count of potential links. If the library has zero Unrecognized files, an ordinary new `--plan` will be empty; exercise the automatic fallback with a later newly ingested release or an isolated API fixture. Leave the event service in dry-run until its live behavior and accuracy are confirmed. Any timestamp-based franchise-season inference is heuristic and must fail closed if necessary evidence is missing.
 
+## Opt-in systemd unattended linking (after live verification)
+
+The standalone Shoko LXC event listener is `shoko-reconcile-events.service`.
+Once the host's Manual Link samples and XRefs are verified, opt in **without
+replacing its existing ExecStart or changing its API-key configuration**:
+
+```bash
+# Run as root inside the Shoko LXC, after pulling the updated repo.
+install -d -m 755 /etc/systemd/system/shoko-reconcile-events.service.d
+printf '%s\\n' '[Service]' 'Environment=SHOKO_RECONCILE_APPLY=LINK' \\
+  > /etc/systemd/system/shoko-reconcile-events.service.d/30-auto-link.conf
+systemctl daemon-reload
+systemctl restart shoko-reconcile-events.service
+systemctl is-active shoko-reconcile-events.service
+journalctl -u shoko-reconcile-events.service -n 50 --no-pager
+```
+
+Look for `Shoko reconciler mode: AUTO-LINK` on startup. This is an exact-token
+opt-in: absent or empty `SHOKO_RECONCILE_APPLY` remains dry-run, and any
+nonempty value other than `LINK` causes startup to reject configuration.
+The existing `--apply --confirm LINK` CLI method remains supported. The
+event bridge waits for Shoko's jobs to finish and for media stability before
+submitting only `is_safe_automatic_link()`-approved candidates. Ordinary
+`strong_context` and unnumbered `episode_review` are not auto-applied.
+Existing unknown files can be considered at service startup, not just new
+torrent completions.
+
+Rollback to dry-run without disturbing other drop-ins:
+
+```bash
+rm /etc/systemd/system/shoko-reconcile-events.service.d/30-auto-link.conf
+systemctl daemon-reload
+systemctl restart shoko-reconcile-events.service
+```
+
+The separate `qbit-shoko-poller.service` running in CT 540 should continue
+handling torrent-completion import scans; do not add a second scanner.
+
 ## qBittorrent completion hook (5-minute debounce)
 
 `notify-shoko.sh` is a replacement for the Torrenya CT 540 completion hook at
