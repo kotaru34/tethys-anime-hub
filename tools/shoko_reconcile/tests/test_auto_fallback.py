@@ -147,6 +147,25 @@ class AutoFallbackTests(unittest.TestCase):
                                 {"anidb_id": 18603, "score": 0.7789}]}
         self.assertTrue(is_safe_automatic_link(group, row))
 
+    def test_fractional_recap_is_not_automatically_special_10(self):
+        from matching import classify_episode
+        folder = "[Erai-raws] Goblin Slayer"
+        path = f"{folder}/[Erai-raws] Goblin Slayer - 10.5 [1080p].mkv"
+        info = classify_episode(path, group=folder)
+        self.assertEqual((info.category, info.number, info.fraction),
+                         ("Special", 10, "5"))
+        row = {**self.row(mode="exact_work_title", episode=10, kind="Special"),
+               "path": path}
+        # Safeguard applies even if the target series title is unique.
+        from unittest.mock import patch
+        with patch("refinements.unique_exact_work_candidate",
+                   return_value={"anidb_id": 17968}):
+            self.assertEqual(
+                auto_link_rejection_reason(
+                    {"folder": folder, "candidates": []}, row),
+                "fractional_episode_special_identity_unverified",
+            )
+
     def test_fuzzy_and_trailer_are_manual(self):
         self.assertFalse(is_safe_automatic_link(self.group([]), self.row(mode="review")))
         self.assertFalse(is_safe_automatic_link(self.group([]), self.row(kind="Trailer")))
