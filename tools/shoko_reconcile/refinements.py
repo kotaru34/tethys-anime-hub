@@ -130,6 +130,60 @@ def _choose_public_crosswalk(group: dict, records: list[dict]):
     return matches[0] if len(matches) == 1 else None
 
 
+
+def unique_exact_work_candidate(group: dict):
+    """One unique AniDB work whose full canonical/alias title equals the release.
+
+    This is identity equality, *not* a 0.98 similarity score. Compare ONLY the
+    complete cleaned release folder, not stripped base-title queries which can
+    silently erase a sequel/cour marker. Do not promote a sequel/OVA to S1.
+    """
+    folder = group.get("folder") or ""
+    if folder.startswith("__"):
+        return None
+    release = _release_title(folder)
+    key = _key(release)
+    if not key:
+        return None
+    release_season = season_hint(release)
+    release_part = _part(release)
+    expected_type = type_hint(folder)
+    found = {}
+    for candidate in group.get("candidates") or []:
+        aid = candidate.get("anidb_id")
+        if not isinstance(aid, int):
+            continue
+        title = str(candidate.get("title") or "")
+        aliases = [title, str(candidate.get("matched_alias") or "")]
+        if not any(_key(name) == key for name in aliases if name):
+            continue
+        candidate_season = candidate.get("season")
+        if candidate_season is None:
+            candidate_season = season_hint(title)
+        # Never let a nameless base release resolve to an explicitly numbered
+        # sequel. A title with S02 must map to a candidate with S02 evidence.
+        if release_season is None and candidate_season is not None and candidate_season > 1:
+            continue
+        if release_season is not None and candidate_season is not None and release_season != candidate_season:
+            continue
+        if release_season is not None and release_season > 1 and candidate_season is None:
+            continue
+        # Part 2 must not resolve to the first cour, even if an alias is
+        # shared between distinct series entries.
+        candidate_part = _part(title) or _part(str(candidate.get("matched_alias") or ""))
+        if release_part != candidate_part:
+            continue
+        ctype = str(candidate.get("type") or "unknown").casefold()
+        if expected_type == "Movie" and ctype not in {"movie", "film", "unknown"}:
+            continue
+        if expected_type in {"OVA", "ONA"} and ctype not in {"ova", "ona", "special", "unknown"}:
+            continue
+        if expected_type is None and ctype in {"movie", "film", "ova", "special"}:
+            continue
+        found[aid] = candidate
+    return next(iter(found.values())) if len(found) == 1 else None
+
+
 def _episode_issues(g: dict, record: dict | None):
     """Fix numbering semantics after selecting the work, without fabricating an episode."""
     folder = g["folder"]
@@ -238,6 +292,7 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                 g["reason"] = "exact release folder crosswalk; not fuzzy title matching"
                 continue
         crosswalk = _choose_public_crosswalk(g, records)
+        exact_work = unique_exact_work_candidate(g) if not crosswalk else None
         ranked = sorted(((round(_title_candidate_confidence(g, c), 5), c) for c in g.get("candidates", [])), key=lambda p: -p[0])
         top_score, best = ranked[0] if ranked else (-999, None)
         second_score = ranked[1][0] if len(ranked) > 1 else -999
@@ -269,29 +324,41 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                         and crosswalk.get("season") is not None):
                     candidate["season"] = crosswalk["season"]
             reason = "exact localized/public-series alias crosswalk"
+        elif exact_work:
+            selected_record = exact_work
+            reason = "unique full-title identity from Shoko/AniDB candidate"
         elif best and top_score >= 0.91 and top_score - second_score >= 0.075:
             selected_record = best
             reason = "unambiguous full-title + season/part/media-type evidence"
         if selected_record:
             aid = int(selected_record["anidb_id"])
+            evidence_mode = ("public_crosswalk" if crosswalk else
+                             "exact_work_title" if exact_work else "strong_context")
             for r in rows:
-                if r.get("mode") in ("review", "episode_review") and r.get("episode_type") not in ("Extra",):
-                    # Keep separately named media (including chibi spin-offs) separate.
-                    if "youjo shenki" in r["path"].casefold() and "youjo senki" in g["folder"].casefold():
-                        continue
-                    r["target_anidb_id"] = aid
-                    # Identifying a work does not establish its episode.
-                    # Preserve a visible review state for unnumbered files,
-                    # even when the title match is otherwise unambiguous.
-                    if not isinstance(r.get("episode"), int) or r["episode"] <= 0:
-                        r["mode"] = "episode_review"
-                        r["reason"] = "series identified, but episode identity is unverified"
-                        continue
-                    r["mode"] = "public_crosswalk" if crosswalk else "strong_context"
-                    r["reason"] = reason
-            if g.get("mode") == "review":
+                # Preserve explicit exclusions, verified publisher rules, and
+                # any already distinct per-file work IDs. A newly selected
+                # *exact* identity MUST supersede a weak prior fuzzy pick:
+                # otherwise the prior auto_evidence rows never get rescued.
+                old_mode = r.get("mode")
+                if old_mode not in ("review", "episode_review", "auto_evidence", "strong_context"):
+                    continue
+                if r.get("episode_type") == "Extra":
+                    continue
+                if "youjo shenki" in r["path"].casefold() and "youjo senki" in g["folder"].casefold():
+                    continue
+                if (not (crosswalk or exact_work) and r.get("target_anidb_id")
+                        and int(r["target_anidb_id"]) != aid):
+                    continue
+                r["target_anidb_id"] = aid
+                if not isinstance(r.get("episode"), int) or r["episode"] <= 0:
+                    r["mode"] = "episode_review"
+                    r["reason"] = "series identified, but episode identity is unverified"
+                    continue
+                r["mode"] = evidence_mode
+                r["reason"] = reason
+            if crosswalk or exact_work or g.get("mode") == "review":
                 g["selected_anidb_id"] = aid
-                g["mode"] = "public_crosswalk" if crosswalk else "strong_context"
+                g["mode"] = evidence_mode
                 g["reason"] = reason
             if not any(int(c.get("anidb_id") or -1) == aid for c in g.get("candidates", [])):
                 g.setdefault("candidates", []).insert(0, dict(selected_record, score=1.0, matched_alias=g["title_guess"]))
