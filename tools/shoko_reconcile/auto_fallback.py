@@ -60,6 +60,10 @@ def special_identity_rejection_reason(group, row):
         return None
     from matching import classify_episode
     path = str(row.get("path") or "")
+    if not path:
+        # Legacy/offline plans without filenames provide no independent
+        # per-file OVA evidence; do not invent one from the folder alone.
+        return None
     info = classify_episode(path, group=group.get("folder") or "")
     stem = PurePosixPath(path).stem
     explicit_ova = re.search(
