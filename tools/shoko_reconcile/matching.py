@@ -200,9 +200,12 @@ def classify_episode(relative_path: str, *, group: str = "") -> EpisodeInfo:
                     break
     if season is None:
         season=season_hint(stem) or season_hint(clean_release_title(group))
-    if number is None:
-        extra_number = RE_SPECIAL_N.search(stem)
-        if extra_number: number = int(extra_number.group(1))
+    # An explicit numbered OVA/ONA/OAD marker identifies the episode of
+    # that special work. "Episode - 13 (OVA 1)" means OVA E01, not TV E13.
+    # Prefer the semantically labeled number to a release's absolute number.
+    extra_number = RE_SPECIAL_N.search(stem)
+    if extra_number and RE_SPECIAL.search(stem):
+        number = int(extra_number.group(1))
     if re.search(r"(?i)\b(?:ep\s*00|s\d{2}ep\s*00|s\d{2}e00)\b",stem):
         return EpisodeInfo("Special",0,season,reason="episode 00")
     if RE_MOVIE.search(stem) or re.search(r"(?i)\[(?:movie|film)\]",stem) or (RE_MOVIE.search(group) and len(parts)<=2):

@@ -36,23 +36,48 @@ def normal_episode_count(api, aid, cache):
     return cache[aid]
 
 
+def _search_titles(item):
+    """Full Shoko AniDB search names, including typed multilingual aliases."""
+    title = item.get("Title")
+    if isinstance(title, str):
+        yield title
+    titles = item.get("Titles") or []
+    if isinstance(titles, dict):
+        titles = list(titles.values())
+    for value in titles:
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for key in ("Title", "Text", "Value", "Name"):
+                if isinstance(value.get(key), str):
+                    yield value[key]
+
+
 def second_season_id(api, base_title, original_aid, cache):
     key = match_key(base_title)
     if not key or season_hint(base_title) is not None or type_hint(base_title):
         return None
-    if key not in cache:
-        expected = match_key(base_title + " 2nd Season")
-        records = api.anime_search(base_title + " 2nd Season")
+    cache_key = (key, original_aid)
+    if cache_key not in cache:
+        # Full exact names only: fuzzy rank, franchise root and year do not
+        # establish a different season. Both common word orders are valid.
+        queries = (base_title + " 2nd Season", base_title + " Season 2")
+        accepted = {match_key(title) for title in queries}
         ids = set()
-        for item in records:
-            if not item.get("ID"):
-                continue
-            aid = int(item["ID"])
-            if aid != original_aid and match_key(str(item.get("Title") or "")) == expected:
-                if str(item.get("Type") or "TV").casefold() in ("tv", "unknown", "series"):
+        for query in queries:
+            for item in api.anime_search(query):
+                if not item.get("ID"):
+                    continue
+                aid = int(item["ID"])
+                if aid == original_aid:
+                    continue
+                media_type = str(item.get("Type") or "Unknown").casefold()
+                if media_type not in ("tv", "tv series", "series", "unknown"):
+                    continue
+                if any(match_key(title) in accepted for title in _search_titles(item)):
                     ids.add(aid)
-        cache[key] = next(iter(ids)) if len(ids) == 1 else None
-    return cache[key]
+        cache[cache_key] = next(iter(ids)) if len(ids) == 1 else None
+    return cache[cache_key]
 
 
 def source_proof(reference, group, row, expected_aid):
@@ -65,11 +90,15 @@ def source_proof(reference, group, row, expected_aid):
 
 
 def promote_verified_second_season(api, plan, eligible, *, reference=None,
-                                   episode_counts=None, sequel_ids=None):
+                                   episode_counts=None, sequel_ids=None, diagnostics=None):
     reference = sibling_index(api) if reference is None else reference
     episode_counts = {} if episode_counts is None else episode_counts
     sequel_ids = {} if sequel_ids is None else sequel_ids
+    diagnostics = {} if diagnostics is None else diagnostics
     promoted = 0
+
+    def count(name, amount=1):
+        diagnostics[name] = diagnostics.get(name, 0) + amount
     for group in plan.get("groups", []):
         folder = group.get("folder") or ""
         if (group.get("mixed_season_source") or folder.startswith("__")
@@ -89,27 +118,39 @@ def promote_verified_second_season(api, plan, eligible, *, reference=None,
                 continue
             if classify_episode(str(row.get("path") or ""), group=folder).category != "Episode":
                 continue
+            count("eligible_high_numbered_episodes")
             rel = PurePosixPath(str(row.get("path") or ""))
             evidence = reference.get(rel.parent.as_posix())
             if not evidence or len(evidence["work_ids"]) != 1:
                 continue
             aid = next(iter(evidence["work_ids"]))
-            if row.get("target_anidb_id") and int(row["target_anidb_id"]) != aid:
+            # Independent recognized siblings and verified episode lengths
+            # outweigh an earlier automatic title guess. Explicit overrides
+            # remain authoritative and are never replaced.
+            if (row.get("target_anidb_id") and int(row["target_anidb_id"]) != aid
+                    and row.get("mode") not in ("review", "episode_review",
+                                                "auto_evidence", "strong_context",
+                                                "exact_work_title", "sibling_consensus")):
                 continue
             if not source_proof(reference, group, row, aid):
                 continue
+            count("sibling_proven_high_numbered_episodes")
             size = normal_episode_count(api, aid, episode_counts)
             if size is None or not (size < source <= size * 2):
                 continue
+            count("verified_s1_overflow_episodes")
             per_aid.setdefault((aid, size), []).append(row)
         for (first_aid, size), candidates in per_aid.items():
             numbers = {int(r.get("source_episode") or r["episode"]) for r in candidates}
             if (len(numbers) < 3 or min(numbers) != size + 1
                     or max(numbers) - min(numbers) + 1 != len(numbers)):
                 continue
+            count("contiguous_continuation_blocks")
             sequel = second_season_id(api, base, first_aid, sequel_ids)
             if sequel is None:
+                count("blocks_without_exact_s2_identity")
                 continue
+            count("blocks_with_exact_s2_identity")
             for row in candidates:
                 src = int(row.get("source_episode") or row["episode"])
                 row["source_episode"] = src

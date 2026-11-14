@@ -147,6 +147,44 @@ class AutoFallbackTests(unittest.TestCase):
                                 {"anidb_id": 18603, "score": 0.7789}]}
         self.assertTrue(is_safe_automatic_link(group, row))
 
+    def test_numbered_dxd_ova_never_becomes_tv_episode_or_tv_special(self):
+        from shoko_reconcile import apply
+        path = "High School DxD/High School D×D - 13 (OVA 1).mp4"
+        row = {**self.row(3321, 8660, 13, mode="auto_evidence"),
+               "path": path}
+        group = {"folder": "High School DxD", "files": [row],
+                 "candidates": [{"anidb_id": 8660, "type": "TV", "score": 1.0}]}
+        self.assertEqual(auto_link_rejection_reason(group, row),
+                         "special_filename_episode_number_mismatch")
+        # An older saved safe plan must not bypass the new classification.
+        class Shoko:
+            def unrecognized(self):
+                return [{"ID": 3321, "Locations": [{"RelativePath": path}]}]
+            def local_series(self, aid):
+                raise AssertionError("TV series must never be queried for an OVA")
+            def link(self, *args):
+                raise AssertionError("No TV/OVA link is allowed")
+        result = apply(Shoko(), {"version": 2, "groups": [group]}, delay=0)
+        self.assertEqual(result["submitted"], 0)
+        self.assertEqual(result["deferred_by_reason"],
+                         {"special_filename_episode_number_mismatch": 1})
+
+        # Correcting the episode number alone is insufficient to link a TV work.
+        row["episode"] = row["source_episode"] = 1
+        self.assertEqual(auto_link_rejection_reason(group, row),
+                         "standalone_special_work_identity_unverified")
+        row["episode_type"] = "Special"
+        self.assertEqual(auto_link_rejection_reason(group, row),
+                         "standalone_ova_requires_separate_work")
+
+    def test_exact_ova_work_can_use_anidb_normal_episode_number(self):
+        path = "High School DxD OVA/High School DxD - 13 (OVA 1).mp4"
+        row = {**self.row(3321, 12345, 1, mode="public_crosswalk"),
+               "path": path}
+        group = {"folder": "High School DxD OVA", "files": [row],
+                 "candidates": [{"anidb_id": 12345, "type": "OVA", "score": 1.0}]}
+        self.assertIsNone(auto_link_rejection_reason(group, row))
+
     def test_fractional_recap_is_not_automatically_special_10(self):
         from matching import classify_episode
         folder = "[Erai-raws] Goblin Slayer"

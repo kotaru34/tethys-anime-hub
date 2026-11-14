@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import sys
 
@@ -48,6 +49,42 @@ def eligible_final_files(files, *, media_root):
     return eligible
 
 
+def special_identity_rejection_reason(group, row):
+    """Reject a TV/OVA type mismatch even when old plans claim a strong title.
+
+    A release's absolute "- 13 (OVA 1)" is *not* proof of TV E13 or S13.
+    The only automatic OVA E-number link is to a separately identified
+    OVA/ONA work, not an arbitrary special attached to a TV work.
+    """
+    if row.get("mode") in {"approved_release", "approved_file_override", "approved_override"}:
+        return None
+    from matching import classify_episode
+    path = str(row.get("path") or "")
+    if not path:
+        # Legacy/offline plans without filenames provide no independent
+        # per-file OVA evidence; do not invent one from the folder alone.
+        return None
+    info = classify_episode(path, group=group.get("folder") or "")
+    stem = PurePosixPath(path).stem
+    explicit_ova = re.search(
+        r"(?i)(?:^|[\s._(\[\-])(?:ova|oad|ona)(?:$|[\s._)\]\-])", stem)
+    if info.category != "Special":
+        if explicit_ova:
+            return "ova_filename_not_classified_as_special"
+        return None
+    if (isinstance(info.number, int) and info.number > 0
+            and info.number != row.get("episode")):
+        return "special_filename_episode_number_mismatch"
+    if row.get("episode_type") == "Episode":
+        target = next((c for c in group.get("candidates") or []
+                       if c.get("anidb_id") == row.get("target_anidb_id")), None)
+        if not target or str(target.get("type") or "").casefold() not in {"ova", "ona"}:
+            return "standalone_special_work_identity_unverified"
+    if explicit_ova and row.get("episode_type") != "Episode":
+        return "standalone_ova_requires_separate_work"
+    return None
+
+
 def auto_link_rejection_reason(group, row):
     """Return the specific failed safety gate, or None for an approved row.
 
@@ -79,6 +116,9 @@ def auto_link_rejection_reason(group, row):
                     "nested_exact_work", "exact_work_title", "auto_evidence",
                     "strong_context", "sibling_consensus", "verified_second_season"}:
         return "mode_requires_manual_review"
+    special_gate = special_identity_rejection_reason(group, row)
+    if special_gate:
+        return special_gate
     if mode == "exact_work_title":
         # Independently recompute full-title uniqueness at the write boundary.
         # Candidate scores are only fuzzy ranks; an exact title identity
@@ -221,8 +261,11 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
     # No generic subtraction based on filename alone.
     try:
         from season_continuations import promote_verified_second_season
+        sequel_evidence = {}
         summary["verified_second_season_promoted"] = promote_verified_second_season(
-            api, plan, eligible, reference=sibling_reference)
+            api, plan, eligible, reference=sibling_reference,
+            diagnostics=sequel_evidence)
+        summary["second_season_evidence"] = sequel_evidence
     except Exception as exc:
         summary["sequel_evidence_error"] = f"{type(exc).__name__}: {exc}"
     # Any remaining sibling E13+ whose episode does not exist in its

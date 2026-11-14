@@ -75,7 +75,7 @@ class SiblingConsensusTests(unittest.TestCase):
         path = "High School DxD/High School D×D - 13 (OVA 1).mp4"
         info = classify_episode(path, group="High School DxD")
         self.assertEqual(info.category, "Special")
-        self.assertEqual(info.number, 13)
+        self.assertEqual(info.number, 1)
         api = API([
             file_record(10, "High School DxD/High School DxD - 01.mkv", aid=8660),
             file_record(11, "High School DxD/High School DxD - 02.mkv", aid=8660),

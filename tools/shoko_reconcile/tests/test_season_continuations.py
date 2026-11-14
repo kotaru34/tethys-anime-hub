@@ -78,6 +78,61 @@ class ContinuationTests(unittest.TestCase):
         self.assertEqual(api.linked[0], (114, 99, 1, "Episode"))
         self.assertEqual(api.linked[-1], (126, 99, 13, "Episode"))
 
+    def test_exact_multilingual_alias_and_prior_wrong_work_are_rescued(self):
+        class AliasAPI(API):
+            def anime_search(self, title):
+                self.searches += 1
+                # AniDB's preferred title can differ; the complete typed
+                # alternate name is still exact independent search evidence.
+                return [{"ID": 999, "Title": "Example (2024)", "Type": "TV",
+                         "Titles": [{"Title": "Example 2nd Season",
+                                     "Language": "en"}]}]
+        api = AliasAPI()
+        p = plan(*range(14, 27))
+        for row in p["groups"][0]["files"]:
+            row["target_anidb_id"] = 888
+            row["mode"] = "exact_work_title"
+        evidence = {}
+        eligible = {r["file_id"] for r in p["groups"][0]["files"]}
+        self.assertEqual(promote_verified_second_season(
+            api, p, eligible, diagnostics=evidence), 13)
+        self.assertEqual(evidence["eligible_high_numbered_episodes"], 13)
+        self.assertEqual(evidence["sibling_proven_high_numbered_episodes"], 13)
+        self.assertEqual(evidence["verified_s1_overflow_episodes"], 13)
+        self.assertEqual(evidence["contiguous_continuation_blocks"], 1)
+        self.assertEqual(evidence["blocks_with_exact_s2_identity"], 1)
+        self.assertEqual(api.searches, 2)
+        self.assertTrue(verify_split_row(api, p["groups"][0],
+                                         p["groups"][0]["files"][0]))
+
+    def test_fuzzy_only_sequel_cannot_pass_exact_alias_check(self):
+        class FuzzyAPI(API):
+            def anime_search(self, title):
+                self.searches += 1
+                return [{"ID": 999, "Title": "Example Another Story",
+                         "Type": "TV", "Titles": ["Example"]}]
+        api = FuzzyAPI()
+        p = plan(*range(14, 27))
+        eligible = {r["file_id"] for r in p["groups"][0]["files"]}
+        evidence = {}
+        self.assertEqual(promote_verified_second_season(
+            api, p, eligible, diagnostics=evidence), 0)
+        self.assertEqual(evidence["blocks_without_exact_s2_identity"], 1)
+
+    def test_two_different_exact_sequel_work_ids_are_ambiguous(self):
+        class AmbiguousAPI(API):
+            def anime_search(self, title):
+                self.searches += 1
+                return [{"ID": 999, "Title": "Example 2nd Season", "Type": "TV"},
+                        {"ID": 998, "Title": "Example Season 2", "Type": "TV"}]
+        api = AmbiguousAPI()
+        p = plan(*range(14, 27))
+        eligible = {r["file_id"] for r in p["groups"][0]["files"]}
+        self.assertEqual(promote_verified_second_season(api, p, eligible), 0)
+        self.assertEqual(demote_nonexistent_sibling_episodes(api, p), 0)
+        self.assertEqual([r["mode"] for r in p["groups"][0]["files"]],
+                         ["auto_evidence"] * 13)
+
     def test_without_exact_second_work_never_remap_or_link_overflow(self):
         api = API(season2=False)
         p = plan(*range(14, 27))
