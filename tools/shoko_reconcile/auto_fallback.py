@@ -228,6 +228,47 @@ def review_diagnostics(plan, eligible, *, max_groups=12):
     }
 
 
+def demote_missing_anidb_episodes(api, plan, eligible):
+    """Move already approved but nonexistent AniDB episodes to review.
+
+    Shoko metadata must contain a nonempty actual episode inventory to prove
+    absence; a missing series or an empty/in-flight episode inventory is NOT
+    negative evidence and remains eligible for targeted metadata refresh.
+    Cache the read per AniDB work, not per file.
+    """
+    available_by_aid = {}
+    demoted = []
+    for group in plan.get("groups") or []:
+        for row in group.get("files") or []:
+            if (int(row.get("file_id") or 0) not in eligible
+                    or auto_link_rejection_reason(group, row) is not None):
+                continue
+            aid = row.get("target_anidb_id")
+            ep = row.get("episode")
+            if not isinstance(aid, int) or not isinstance(ep, int) or ep <= 0:
+                continue
+            if aid not in available_by_aid:
+                series = api.local_series(aid)
+                ids = (series or {}).get("IDs") or {}
+                if ids.get("ID") and int(ids.get("AniDB") or -1) == aid:
+                    available_by_aid[aid] = api.available_episodes(int(ids["ID"]))
+                else:
+                    available_by_aid[aid] = None
+            available = available_by_aid[aid]
+            if not available:
+                continue
+            kind = row.get("episode_type")
+            actual_kind = "Episode" if kind == "Movie" else kind
+            if (actual_kind, ep) in available:
+                continue
+            demoted.append({"file_id": int(row["file_id"]), "anidb_id": aid,
+                            "episode": ep, "type": kind})
+            row["target_anidb_id"] = None
+            row["mode"] = "episode_review"
+            row["reason"] = "target episode number/type absent in current Shoko AniDB metadata"
+    return demoted
+
+
 def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
         minimum_age=None, now=None, do_apply=False, refresh_requests=None):
     # state_path, minimum_age, and now are retained only for compatibility
@@ -296,6 +337,16 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
             api, plan, reference=sibling_reference)
     except Exception as exc:
         summary["sibling_episode_check_error"] = f"{type(exc).__name__}: {exc}"
+    # Do not repeatedly approve a nonexistent E02..E05 when Shoko already
+    # holds a nonempty target episode inventory with no such episode. Actual
+    # missing/in-flight metadata still passes through the refresh path.
+    try:
+        missing = demote_missing_anidb_episodes(api, plan, eligible)
+        summary["missing_anidb_episodes_demoted"] = len(missing)
+        if missing:
+            summary["missing_anidb_episode_examples"] = missing[:4]
+    except Exception as exc:
+        summary["missing_episode_check_error"] = f"{type(exc).__name__}: {exc}"
     # Keep a current, read-only-to-operators inspection snapshot even when
     # *nothing* qualifies for auto-link. This is the critical case when
     # unknowns exceed the configured quality target.
