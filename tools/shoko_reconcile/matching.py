@@ -23,7 +23,10 @@ RE_ROMAN_END = re.compile(r"(?i)\b(I|II|III|IV|V|VI)\s*$")
 RE_BRACKET = re.compile(r"\[([^\[\]]*)\]|\(([^()]*)\)|<([^<>]*)>")
 RE_SXE = re.compile(r"(?i)(?<![a-z0-9])s\s*0*(\d{1,2})[\s._-]*e(?:p(?:isode)?)?[\s._-]*0*(\d{1,3})(?:\.(\d+))?(?!\d)")
 RE_EP = re.compile(r"(?i)(?<![a-z0-9])(?:ep(?:isode)?)[\s._-]*0*(\d{1,3})(?:\.(\d+))?(?!\d)")
-RE_BRACKET_EP = re.compile(r"(?i)(?:^|[\s._-])\[0*(\d{1,3})(?:\.(\d+))?\](?=$|[\s._-])")
+# [01][Ma10p_1080p] and [01][HEVC] put a technical bracket
+# directly after the episode bracket; no whitespace separator exists.
+RE_BRACKET_EP = re.compile(r"(?i)(?:^|[\\s._-])\\[0*(\\d{1,3})(?:\\.(\\d+))?\\](?=$|[\\s._\\[-])")
+RE_BRACKET_FINAL = re.compile(r"(?i)(?:^|[\\s._-])\\[0*([1-9]\\d{0,2})[_\\s-]+(?:end|final|fin)\\](?=$|[\\s._\\[-])")
 RE_SEP_EP = re.compile(r"(?i)(?:\s+-\s+|_+)(\d{1,3})(?:\.(\d+))?(?=\s|_|\.|\[|\(|$)")
 RE_TRAIL_EP = re.compile(r"(?:\s+|\.)0*([1-9]\d?)(?=\s*(?:\[|\(|$))")
 RE_START_EP = re.compile(r"^0*([1-9]\d?)(?=\[|[_. -])")
@@ -193,7 +196,7 @@ def classify_episode(relative_path: str, *, group: str = "") -> EpisodeInfo:
         m=RE_EP.search(stem)
         if m: number=int(m.group(1));fraction=m.group(2)
         if m is None:
-            for pattern in (RE_BRACKET_EP, RE_SEP_EP, RE_TRAIL_EP, RE_START_EP):
+            for pattern in (RE_BRACKET_EP, RE_BRACKET_FINAL, RE_SEP_EP, RE_TRAIL_EP, RE_START_EP):
                 candidate=list(pattern.finditer(stem))
                 if candidate:
                     m=candidate[-1];number=int(m.group(1));fraction=m.group(2) if m.lastindex and m.lastindex>=2 else None
