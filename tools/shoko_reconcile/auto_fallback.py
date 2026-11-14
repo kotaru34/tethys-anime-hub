@@ -110,11 +110,20 @@ def auto_link_rejection_reason(group, row):
             return "sequel_split_evidence_missing"
         if offset < 6 or target < 1 or target > offset or source != offset + target:
             return "sequel_split_evidence_mismatch"
+    elif mode == "verified_tv_batch":
+        count = row.get("verified_tv_episode_count")
+        if not isinstance(count, int) or not 6 <= count <= 26:
+            return "verified_tv_batch_proof_missing"
+        if row.get("episode_type") != "Episode":
+            return "verified_tv_batch_non_tv_episode"
+        if not target_season_supported(group, row):
+            return "candidate_season_unsupported"
     elif not target_season_supported(group, row):
         return "candidate_season_unsupported"
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
                     "nested_exact_work", "exact_work_title", "auto_evidence",
-                    "strong_context", "sibling_consensus", "verified_second_season"}:
+                    "strong_context", "sibling_consensus", "verified_second_season",
+                     "verified_tv_batch"}:
         return "mode_requires_manual_review"
     special_gate = special_identity_rejection_reason(group, row)
     if special_gate:
@@ -268,6 +277,17 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
         summary["second_season_evidence"] = sequel_evidence
     except Exception as exc:
         summary["sequel_evidence_error"] = f"{type(exc).__name__}: {exc}"
+    # Full-season independent proof can promote a long-romaji spelling
+    # variation without relaxing fuzzy title score/margin thresholds.
+    # No per-file media polling; only exact candidate and AniDB episode API.
+    try:
+        from verified_tv_batch import promote_verified_tv_batch
+        tv_evidence = {}
+        summary["verified_tv_batch_promoted"] = promote_verified_tv_batch(
+            api, plan, eligible, diagnostics=tv_evidence)
+        summary["verified_tv_batch_evidence"] = tv_evidence
+    except Exception as exc:
+        summary["verified_tv_batch_error"] = f"{type(exc).__name__}: {exc}"
     # Any remaining sibling E13+ whose episode does not exist in its
     # original work must remain review; applying it would only defer forever.
     try:
