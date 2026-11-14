@@ -15,15 +15,24 @@ from matching import (classify_episode, clean_release_title, match_key,
                       season_hint, target_season_supported, type_hint, year_hint)
 
 
+_ROMAN_SEASONS = {"ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6",
+                  "vii": "7", "viii": "8"}
+
+
 def _compact_title(title):
     canonical = match_key(str(title or ""), strict=True)
-    compact = canonical.replace(" ", "")
-    # Only collapse spaces in full-length Latin/romaji names. Short titles,
-    # symbols with semantic meanings and non-Latin scripts need exact review.
-    if (len(compact) < 24 or not re.fullmatch(r"[a-z0-9]+", compact)
-            or len(canonical.split()) < 3):
+    if not canonical or not re.fullmatch(r"[a-z0-9 ]+", canonical):
         return None
-    return compact
+    # Change only a terminal, standalone Roman season index; no general
+    # abbreviation/number substitution is permitted.
+    parts = canonical.split()
+    if parts and parts[-1] in _ROMAN_SEASONS:
+        parts[-1] = _ROMAN_SEASONS[parts[-1]]
+    canonical = " ".join(parts)
+    # Full-length romaji permits an exact comparison without whitespace.
+    # Short works require full word-boundary equality; no fuzzy similarity.
+    compact = canonical.replace(" ", "")
+    return compact if len(compact) >= 24 and len(parts) >= 3 else canonical
 
 
 def _aliases(candidate):
@@ -48,7 +57,7 @@ def _aliases(candidate):
 
 
 def unique_tv_work(group, *, failure=None):
-    """Return one exact TV candidate, or explain the fail-closed title gate."""
+    """Require a unique full-title TV-like work, including strict S2 aliases."""
     def reject(reason):
         if failure is not None:
             failure.append(reason)
@@ -61,36 +70,60 @@ def unique_tv_work(group, *, failure=None):
     release = clean_release_title(folder)
     key = _compact_title(release)
     if key is None:
-        return reject("not_long_latin_full_title")
+        return reject("not_latin_full_title")
+
     requested_season = season_hint(release)
+    # Ordinary distributors frequently name a sequel "Goblin Slayer 2"
+    # while AniDB calls it "Goblin Slayer II". A trailing 2 alone NEVER
+    # selects a work: its candidate must independently prove Season 2.
+    trailing = re.search(r"[\s._-]+([2-9])$", release)
+    if requested_season is None and trailing:
+        requested_season = int(trailing.group(1))
+    base_key = (_compact_title(release[:trailing.start()])
+                if trailing else None)
+
     found = {}
     typed_count = title_count = 0
     for candidate in group.get("candidates") or []:
         aid = candidate.get("anidb_id")
-        if not isinstance(aid, int) or str(candidate.get("type") or "").casefold() not in {"tv", "tv series"}:
+        candidate_type = str(candidate.get("type") or "").casefold()
+        if (not isinstance(aid, int)
+                or candidate_type not in {"tv", "tv series", "unknown", ""}):
             continue
         typed_count += 1
-        # Inspect the full title before excluding a candidate by season;
-        # that makes diagnostics distinguish missing aliases from season
-        # conflicts without changing which candidates can be selected.
-        if not any(_compact_title(alias) == key for alias in _aliases(candidate)):
-            continue
-        title_count += 1
-        # An unmarked source must not inherit the root alias of a dated
-        # sequel which Shoko/AniDB catalogs as a separate work by year.
-        if year_hint(str(candidate.get("title") or "")) and not year_hint(release):
-            continue
+
+        # Use source-independent season evidence from the AniDB candidate,
+        # not from the filename's number alone.
         candidate_season = candidate.get("season")
         if candidate_season is None:
             candidate_season = season_hint(str(candidate.get("title") or ""))
-        if requested_season is None and candidate_season is not None and candidate_season > 1:
+        aliases = list(_aliases(candidate))
+        exact_match = any(_compact_title(alias) == key for alias in aliases)
+        # When a terminal Arabic 2 is the release's season notation, the
+        # official S2 title may omit it (e.g. Kaguya-sama "?"). The base
+        # title is acceptable ONLY for the independently tagged S2 work.
+        season_tag_match = (
+            bool(trailing) and requested_season == candidate_season
+            and base_key is not None
+            and any(_compact_title(alias) == base_key for alias in aliases)
+        )
+        if not (exact_match or season_tag_match):
             continue
-        if (requested_season is not None and candidate_season is not None
-                and requested_season != candidate_season):
+        title_count += 1
+        if year_hint(str(candidate.get("title") or "")) and not year_hint(release):
             continue
+        if requested_season is not None:
+            if candidate_season != requested_season:
+                continue
+        elif candidate_season is not None and candidate_season > 1:
+            # "High School DxD Born" may be a real unnumbered S3 title:
+            # the CANONICAL work title must match exactly, never a shared
+            # franchise-root alias such as "High School DxD".
+            if _compact_title(candidate.get("title")) != key:
+                continue
         found[aid] = candidate
     if not typed_count:
-        return reject("no_typed_tv_candidates")
+        return reject("no_tv_or_unknown_candidates")
     if not title_count:
         return reject("no_exact_full_title_alias")
     if not found:

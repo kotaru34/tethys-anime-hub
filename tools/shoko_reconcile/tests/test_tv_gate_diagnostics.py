@@ -55,15 +55,18 @@ class TVDiagnosticTests(unittest.TestCase):
         self.assertEqual(diag["title_gate_examples"][0]["candidate_titles"],
                          ["Entirely Different Series"])
 
-    def test_short_tv_is_intentionally_not_claimed_by_romaji_mode(self):
+    def test_short_tv_with_two_identical_titles_remains_ambiguous(self):
         folder = "Nekopara"
         g = group_for(folder, {"anidb_id": 11, "title": folder,
-                               "type": "TV", "score": 0.95}, 12)
+                               "type": "Unknown", "score": 1}, 12)
+        g["candidates"].append({"anidb_id": 22, "title": folder,
+                                "type": "Unknown", "score": 1})
         diag = {}
         self.assertEqual(promote_verified_tv_batch(
             NoApi(), {"groups": [g]}, {r["file_id"] for r in g["files"]},
             diagnostics=diag), 0)
-        self.assertEqual(diag["title_gate_reasons"], {"not_long_latin_full_title": 1})
+        self.assertEqual(diag["title_gate_reasons"],
+                         {"multiple_exact_tv_work_ids": 1})
 
     def test_dated_sequel_root_alias_is_flagged_not_promoted(self):
         folder = "Konoyo no Hate de Koi o Utau Shoujo YU-NO"
