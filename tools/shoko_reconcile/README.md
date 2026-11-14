@@ -242,39 +242,35 @@ no independent episode evidence, and any newly imported titles for which no
 source-backed crosswalk exists. Lowering counts is not a justification to
 fabricate AniDB File records or force an episode assignment.
 
-## Queue-independent linking and qBittorrent partial-file handling
+## Immediate final-file linking (qBittorrent owns completion)
 
-`Shoko /Queue` includes background image fetching, not just anime metadata.
-Previously the event bridge waited for **every** queued image to finish,
-and each unrelated busy→idle transition could launch another expensive
-full-library matching pass. That is now deliberately removed.
+`Shoko /Queue` includes background artwork fetches. The SignalR worker
+therefore does **not** wait for global queue idle; it links files as soon as
+Shoko has a valid local target series and episode.
 
-- Shoko's native `Shoko:FileNotMatched` event or service startup/reconnect
-  triggers reconciliation, **without reading `/Queue`**.
-- Existing `stable_unknowns` checks still require a safe, readable,
-  age-stable **final** media file. Files whose names end in `.!qB` or
-  `.qb!` are explicitly excluded. There is no monitoring or polling of
-  in-progress torrents: qBittorrent is responsible for downloads.
-- After an unmatched-file event, finalized files not yet past the stability
-  guard may receive **one** delayed follow-up, not a perpetual download
-  polling timer.
-- The actual `apply()` operation independently rechecks the file's Shoko
-  unrecognized status and path, AniDB work identity, and verified destination
-  episode before submitting a manual link. Thus unrelated image jobs are not
-  a safety dependency.
-- Only **missing series/episode metadata** are retried on a bounded timer,
-  using the already prepared safe plan rather than repeating title searches.
-  Each missing AniDB ID can request a refresh at most once per 15 minutes
-  during this service process; the light metadata readiness check is retried
-  after 60 seconds.
-- Shoko 503 responses during server startup do not kill the event bridge:
-  both the API worker and WebSocket reconnect independently.
-- The Shoko scheduler can still delay *actual AniDB metadata jobs* behind
-  unrelated work; this fix removes the reconciler's artificial global wait
-  but does not change Shoko's internal scheduling priorities.
+- qBittorrent is the source of truth for downloads. Incomplete filenames
+  ending in `.!qB` or `.qb!` are excluded; no torrent-download polling is
+  implemented.
+- Every Shoko-unrecognized final video file is eligible **on the first
+  event/startup pass**, without any 120-second grace period, mtime comparison,
+  `seen.json` state-file reading/writing, or delayed maturity timer.
+- Only minimal path safety remains: the file must exist under the media mount,
+  be a regular, non-empty file and not escape the mount through a symlink.
+  During `apply()`, Shoko's latest unrecognized-file status, original path,
+  AniDB work ID and verified episode are checked again.
+- The SignalR bridge reacts to `Shoko:FileNotMatched` plus startup/reconnect
+  events. It ignores background queue-state changes.
+- Only missing **specific** AniDB series/episode metadata are retried
+  periodically (with rate-limited refreshes), using the already prepared
+  safe plan instead of repeating title search. Temporary Shoko 503 errors
+  are retried independently.
+- `--minimum-age` and `--state` are accepted as inert legacy CLI options
+  so existing systemd overrides or scripts do not fail.
 
-No changes are made to media files, torrent names, file locations, or the
-qBittorrent download workflow.
+**Assumption:** qBittorrent must actually use its partial-filename extension
+for any in-progress download visible to Shoko. Other tools that create a
+final-named MKV while still writing it are not protected by a stability gate.
+This is a deliberate performance choice for the Torrenya/qBittorrent pipeline.
 
 ## Unique full-title AniDB work identity (no global fuzzy threshold lowering)
 
