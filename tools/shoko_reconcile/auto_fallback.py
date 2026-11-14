@@ -215,7 +215,9 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
                            refresh_requests=refresh_requests)
             summary.update({"submitted": result["submitted"], "errors": result["errors"],
                             "awaiting_series_refresh": result["awaiting_series_refresh"],
-                            "deferred": result["deferred"]})
+                            "deferred": result["deferred"],
+                            "deferred_by_reason": result["deferred_by_reason"],
+                            "deferred_examples": result["deferred_examples"]})
     return summary
 
 
