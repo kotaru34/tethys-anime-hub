@@ -336,6 +336,8 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
     episodes_cache = {}
     sequel_episode_counts = {}
     sequel_identity_cache = {}
+    tv_episode_cache = {}
+    tv_batch_group_proofs = {}
     deferred_by_reason = Counter()
     deferred_examples = defaultdict(list)
     audit = []
@@ -410,6 +412,21 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
                                             sequel_ids=sequel_identity_cache):
                         defer("sequel_split_live_proof_missing", row)
                         continue
+            elif mode == "verified_tv_batch":
+                # A saved plan is not authoritative. Recheck entire E01..EN
+                # work identity and live AniDB episode inventory once per
+                # group at the write boundary, not once per episode.
+                from verified_tv_batch import tv_batch_proof
+                group_key = id(group)
+                if group_key not in tv_batch_group_proofs:
+                    tv_batch_group_proofs[group_key] = tv_batch_proof(
+                        api, group, cache=tv_episode_cache)
+                verified = tv_batch_group_proofs[group_key]
+                if (verified is None or int(aid) != verified[0]
+                        or row.get("verified_tv_episode_count") != verified[1]
+                        or not any(r.get("file_id") == fid for r in verified[2])):
+                    defer("verified_tv_batch_live_proof_missing", row)
+                    continue
             elif not target_season_supported(group, row):
                 defer("target_season_unsupported", row)
                 continue
