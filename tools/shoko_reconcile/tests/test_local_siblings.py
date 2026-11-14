@@ -70,6 +70,22 @@ class SiblingConsensusTests(unittest.TestCase):
         self.assertEqual(promote_linked_siblings(
             api, plan_for(aid=54321, mode="strong_context"), {100}), 0)
 
+    def test_parenthesized_ova_1_does_not_promote_tv_episode_13(self):
+        from matching import classify_episode
+        path = "High School DxD/High School D×D - 13 (OVA 1).mp4"
+        info = classify_episode(path, group="High School DxD")
+        self.assertEqual(info.category, "Special")
+        self.assertEqual(info.number, 13)
+        api = API([
+            file_record(10, "High School DxD/High School DxD - 01.mkv", aid=8660),
+            file_record(11, "High School DxD/High School DxD - 02.mkv", aid=8660),
+        ])
+        p = plan_for(path, aid=8660, mode="auto_evidence")
+        p["groups"][0]["folder"] = "High School DxD"
+        p["groups"][0]["files"][0]["episode"] = 13
+        p["groups"][0]["files"][0]["episode_type"] = "Episode"
+        self.assertEqual(promote_linked_siblings(api, p, {100}), 0)
+
     def test_unnumbered_and_specials_never_piggyback(self):
         api = API([file_record(10, "Example/Example - 01.mkv"),
                    file_record(11, "Example/Example - 02.mkv")])
