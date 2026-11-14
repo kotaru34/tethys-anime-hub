@@ -5,7 +5,7 @@ import unittest
 import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from event_bridge import events_in, queue_idle, websocket_url, HANDSHAKE, resolve_apply_mode, wait_until_queue_idle
+from event_bridge import events_in, websocket_url, HANDSHAKE, resolve_apply_mode, retry_delay_for, Coordinator
 
 
 class ProtocolTests(unittest.TestCase):
@@ -17,14 +17,9 @@ class ProtocolTests(unittest.TestCase):
             ("Shoko:FileNotMatched", [{"FileID": 778}])])
         self.assertEqual(list(events_in('{"type":1,"target":"Queue:QueueStateChanged","arguments":[{"TotalCount":0}]}\x1e')),
                          [("Queue:QueueStateChanged", [{"TotalCount": 0}])])
-    def test_queue_idle_and_busy(self):
-        self.assertTrue(queue_idle({"TotalCount": 0, "CurrentlyExecuting": [], "Running": True}))
-        self.assertFalse(queue_idle({"TotalCount": 1, "CurrentlyExecuting": [], "Running": True}))
-        self.assertFalse(queue_idle({"TotalCount": 0, "CurrentlyExecuting": [{"Type":"Hash"}], "Running": True}))
-        self.assertFalse(queue_idle({"TotalCount": 0, "CurrentlyExecuting": [], "Running": False}))
     def test_loopback_only(self):
         self.assertEqual(websocket_url("http://127.0.0.1:8111"),
-                         "ws://127.0.0.1:8111/signalr/aggregate?feeds=shoko,queue")
+                         "ws://127.0.0.1:8111/signalr/aggregate?feeds=shoko")
         with self.assertRaises(ValueError):
             websocket_url("http://10.169.2.151:8111")
 
@@ -49,55 +44,25 @@ class ServiceModeTests(unittest.TestCase):
 
 
 
-class MissedIdleEventTests(unittest.TestCase):
-    class QueueAPI:
-        def __init__(self, statuses):
-            self.statuses = iter(statuses)
-            self.requests = 0
+class UnrelatedQueueJobsTests(unittest.TestCase):
+    def test_queue_idle_signal_does_not_schedule_full_reconciliation(self):
+        worker = object.__new__(Coordinator)
+        worker.pending = threading.Event()
+        worker.received("Queue:QueueStateChanged", [
+            {"Running": True, "TotalCount": 0, "CurrentlyExecuting": []}])
+        self.assertFalse(worker.pending.is_set())
+        worker.received("Shoko:FileNotMatched", [{"FileID": 7}])
+        self.assertTrue(worker.pending.is_set())
 
-        def request(self, method, path):
-            assert method == "GET" and path == "/Queue"
-            self.requests += 1
-            busy = next(self.statuses)
-            return {
-                "TotalCount": 1 if busy else 0, "WaitingCount": 0,
-                "BlockedCount": 0, "CurrentlyExecuting": []
-            }
-
-    class FakeEvent:
-        def __init__(self):
-            self.waits = []
-            self.cleared = 0
-
-        def wait(self, timeout=None):
-            self.waits.append(timeout)
-            return False  # No idle SignalR event ever arrives.
-
-        def clear(self):
-            self.cleared += 1
-
-    def test_idle_queue_does_not_wait_for_signalr(self):
-        api = self.QueueAPI([False])
-        event = self.FakeEvent()
-        wait_until_queue_idle(api, event)
-        self.assertEqual(api.requests, 1)
-        self.assertEqual(event.waits, [])
-
-    def test_missing_idle_notification_recovers_via_bounded_queue_check(self):
-        api = self.QueueAPI([True, True, False])
-        event = self.FakeEvent()
-        wait_until_queue_idle(api, event, retry_seconds=4)
-        self.assertEqual(api.requests, 3)
-        self.assertEqual(event.waits, [4, 4])
-        self.assertEqual(event.cleared, 2)
-
-    def test_busy_queue_rechecks_even_if_idle_flag_was_stale(self):
-        api = self.QueueAPI([True, False])
-        event = threading.Event()
-        event.set()
-        wait_until_queue_idle(api, event, retry_seconds=4)
-        self.assertEqual(api.requests, 2)
-        self.assertFalse(event.is_set())
+    def test_only_metadata_triggers_timed_retries(self):
+        self.assertIsNone(retry_delay_for({
+            "currently_unrecognized": 100,
+            "mature_stable_unknown": 0,
+            "maturing_nonpartial_files": 0,
+            "awaiting_series_refresh": 0, "errors": 0
+        }))
+        self.assertEqual(retry_delay_for({"awaiting_series_refresh": 4}), 60)
+        self.assertEqual(retry_delay_for({"errors": 1}), 60)
 
 
 if __name__ == "__main__":

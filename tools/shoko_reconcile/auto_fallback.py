@@ -31,6 +31,11 @@ def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
             continue
         rel = str(locs[0].get("RelativePath") or "")
         pure = PurePosixPath(rel)
+        # qBittorrent uses a .!qB / .qb! suffix while a file is downloading.
+        # An incomplete torrent belongs exclusively to qBittorrent; do not
+        # inspect it, schedule link attempts, or retry it via file polling.
+        if rel.casefold().endswith((".!qb", ".qb!")):
+            continue
         if not rel or pure.is_absolute() or ".." in pure.parts:
             continue
         try:
@@ -163,19 +168,8 @@ def review_diagnostics(plan, eligible, *, max_groups=12):
     }
 
 
-def queue_is_busy(api):
-    """Wait until ordinary Shoko jobs finish before fallback manual linking."""
-    queue = api.request("GET", "/Queue")
-    if not isinstance(queue, dict):
-        raise RuntimeError("Shoko /Queue did not return expected status")
-    return (int(queue.get("TotalCount") or 0) > 0
-            or int(queue.get("WaitingCount") or 0) > 0
-            or int(queue.get("BlockedCount") or 0) > 0
-            or bool(queue.get("CurrentlyExecuting")))
-
-
 def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
-        minimum_age=900, now=None, do_apply=False):
+        minimum_age=900, now=None, do_apply=False, refresh_requests=None):
     now = time.time() if now is None else now
     root = Path(media_root)
     if not root.is_dir() or not os.path.ismount(root):
@@ -187,13 +181,22 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
         unknown, old_state, now=now, media_root=root, minimum_age=minimum_age)
     _write_private_json(state_file, current)
     summary = {"currently_unrecognized": len(unknown),
-               "mature_stable_unknown": len(eligible), "approved_for_auto": 0,
+               "mature_stable_unknown": len(eligible),
+               # This count excludes any .qb! / .!qB in-progress files.
+               # A one-time post-event check is only relevant to final
+               # filenames which have not yet passed the stability guard.
+               "maturing_nonpartial_files": len(current) - len(eligible),
+               "approved_for_auto": 0,
                "needs_review": 0, "submitted": 0}
     if not eligible:
         return summary
-    if queue_is_busy(api):
-        summary["shoko_queue_busy"] = True
-        return summary
+    # Do NOT wait for Shoko's global queue to become empty. It includes
+    # non-blocking image/creator/character fetches which may take hours.
+    # Per-file eligibility is enforced by stable_unknowns() above, while
+    # apply() rechecks the currently-unrecognized file, original path,
+    # local AniDB series identity, and actual destination episode.
+    # If series/episodes are not ready yet, apply() queues only that series
+    # metadata refresh and returns awaiting_series_refresh.
     plan = prepare(api, overrides={}, catalog=catalog, aggressive=False)
     # For a long-running RSS release, already recognized E01/E02 in the same
     # exact directory are stronger independent work evidence than a fuzzy
@@ -223,7 +226,9 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
     if summary["approved_for_auto"]:
         _write_private_json(plan_path, safe_plan)
         if do_apply:
-            result = apply(api, safe_plan, journal=str(Path(plan_path).with_suffix(".journal.json")))
+            result = apply(api, safe_plan,
+                           journal=str(Path(plan_path).with_suffix(".journal.json")),
+                           refresh_requests=refresh_requests)
             summary.update({"submitted": result["submitted"], "errors": result["errors"],
                             "awaiting_series_refresh": result["awaiting_series_refresh"],
                             "deferred": result["deferred"]})

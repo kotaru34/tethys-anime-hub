@@ -141,6 +141,7 @@ class ApplyTests(unittest.TestCase):
                                        {"ID":2,"Locations":[{"RelativePath":"Anime/Extra S01.mkv"}]}]
         def local_series(self,aid):self.called.append(("series",aid));return {"IDs":{"ID":8,"AniDB":123}}
         def available_episodes(self,sid):return {("Episode",1),("Special",1)} if self.exists else set()
+        def refresh_series(self,aid):self.called.append(("refresh",aid))
         def link(self,*args):self.called.append(("link",*args))
 
     def plan(self):
@@ -158,6 +159,8 @@ class ApplyTests(unittest.TestCase):
         api=self.MockAPI(exists=False)
         result=apply(api,self.plan(),delay=0)
         self.assertEqual(result["submitted"],0)
+        self.assertEqual(result["awaiting_series_refresh"],2)
+        self.assertEqual([c for c in api.called if c[0]=="refresh"], [("refresh",123)])
         self.assertFalse(any(c[0]=="link" for c in api.called))
 
     def test_stale_path_skipped(self):
