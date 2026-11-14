@@ -47,21 +47,35 @@ def _aliases(candidate):
                     yield value
 
 
-def unique_tv_work(group):
+def unique_tv_work(group, *, failure=None):
+    """Return one exact TV candidate, or explain the fail-closed title gate."""
+    def reject(reason):
+        if failure is not None:
+            failure.append(reason)
+        return None
+
     folder = group.get("folder") or ""
     if (folder.startswith("__") or group.get("mixed_season_source")
             or type_hint(folder) is not None):
-        return None
+        return reject("nonstandard_or_mixed_folder")
     release = clean_release_title(folder)
     key = _compact_title(release)
     if key is None:
-        return None
+        return reject("not_long_latin_full_title")
     requested_season = season_hint(release)
     found = {}
+    typed_count = title_count = 0
     for candidate in group.get("candidates") or []:
         aid = candidate.get("anidb_id")
         if not isinstance(aid, int) or str(candidate.get("type") or "").casefold() not in {"tv", "tv series"}:
             continue
+        typed_count += 1
+        # Inspect the full title before excluding a candidate by season;
+        # that makes diagnostics distinguish missing aliases from season
+        # conflicts without changing which candidates can be selected.
+        if not any(_compact_title(alias) == key for alias in _aliases(candidate)):
+            continue
+        title_count += 1
         # An unmarked source must not inherit the root alias of a dated
         # sequel which Shoko/AniDB catalogs as a separate work by year.
         if year_hint(str(candidate.get("title") or "")) and not year_hint(release):
@@ -74,12 +88,15 @@ def unique_tv_work(group):
         if (requested_season is not None and candidate_season is not None
                 and requested_season != candidate_season):
             continue
-        # Match a full title, never just a franchise root or partial query.
-        if not any(_compact_title(alias) == key for alias in _aliases(candidate)):
-            continue
         found[aid] = candidate
+    if not typed_count:
+        return reject("no_typed_tv_candidates")
+    if not title_count:
+        return reject("no_exact_full_title_alias")
+    if not found:
+        return reject("season_or_year_guard")
     if len(found) != 1:
-        return None
+        return reject("multiple_exact_tv_work_ids")
     return next(iter(found.values()))
 
 
@@ -153,11 +170,40 @@ def tv_batch_proof(api, group, *, eligible=None, cache=None):
 
 
 def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None):
-    """Promote a work only after full-title, season and live episode proof."""
+    """Promote only complete TV batches; report title rejects without API calls."""
+    from collections import Counter
+
     diagnostics = {} if diagnostics is None else diagnostics
     cache = {}
     promoted = 0
-    for group in plan.get("groups") or []:
+    title_gates = Counter()
+    # Report large groups first. This identifies precisely why a 26-file
+    # title did not even reach the expensive per-series episode API check.
+    groups = plan.get("groups") or []
+    for group in sorted(groups, key=lambda g: -len(g.get("files") or [])):
+        if len(group.get("files") or []) < 6:
+            continue
+        reason = []
+        candidate = unique_tv_work(group, failure=reason)
+        if candidate is None:
+            gate = reason[0] if reason else "unknown_title_gate"
+            title_gates[gate] += 1
+            if len(diagnostics.setdefault("title_gate_examples", [])) < 14:
+                diagnostics["title_gate_examples"].append({
+                    "folder": group.get("folder"),
+                    "files": len(group.get("files") or []),
+                    "gate": gate,
+                    "candidate_titles": [
+                        str(c.get("title") or "")[:110]
+                        for c in (group.get("candidates") or [])[:2]],
+                })
+        else:
+            title_gates["passed_exact_tv_title"] += 1
+    diagnostics["screened_large_groups"] = sum(
+        len(group.get("files") or []) >= 6 for group in groups)
+    diagnostics["title_gate_reasons"] = dict(sorted(title_gates.items()))
+
+    for group in groups:
         if unique_tv_work(group) is None:
             continue
         diagnostics["exact_spaced_tv_groups"] = diagnostics.get("exact_spaced_tv_groups", 0) + 1
