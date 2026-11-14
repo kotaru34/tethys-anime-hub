@@ -2,8 +2,8 @@
 """Event-driven Shoko 5.3.3 Reconciler using the native SignalR aggregate hub.
 
 Subscribe only to Shoko:FileNotMatched, not image-related queue
-state events. Linking checks final-file stability and each target series/
-episode readiness without waiting for poster/character-image downloads.
+state events. qBittorrent partial suffixes determine download readiness;
+per-target series/episode metadata checks never wait for image downloads.
 Use --apply only after confirming the dry-run behavior on your host.
 """
 from __future__ import annotations
@@ -45,9 +45,8 @@ def websocket_url(shoko_url):
 def retry_delay_for(result, *, metadata_retry_seconds=60):
     """Only series metadata/API errors warrant background retries.
 
-    Incomplete .qb! files never enter the workset, and delayed/stabilizing
-    media are not repeatedly polled by the service. A single deferred
-    eligibility check may be scheduled per incoming unmatched-file event.
+    Incomplete .qb! files never enter the workset. There is no filesystem
+    age gate, download polling, or maturity recheck timer.
     """
     if result.get("awaiting_series_refresh", 0) or result.get("errors", 0):
         return metadata_retry_seconds
@@ -55,12 +54,11 @@ def retry_delay_for(result, *, metadata_retry_seconds=60):
 
 
 class Coordinator:
-    def __init__(self, api, *, catalog=None, minimum_age=120, do_apply=False,
+    def __init__(self, api, *, catalog=None, do_apply=False,
                  state_path="/var/lib/shoko-reconcile/seen.json",
                  plan_path="/var/lib/shoko-reconcile/realtime-plan.json"):
         self.api = api
         self.catalog = catalog
-        self.minimum_age = minimum_age
         self.do_apply = do_apply
         self.state_path = state_path
         self.plan_path = plan_path
@@ -85,8 +83,8 @@ class Coordinator:
     def reconcile(self, do_apply):
         result = reconcile(
             self.api, state_path=self.state_path, plan_path=self.plan_path,
-            catalog=self.catalog, minimum_age=self.minimum_age,
-            do_apply=do_apply, refresh_requests=self.refresh_requests)
+            catalog=self.catalog, do_apply=do_apply,
+            refresh_requests=self.refresh_requests)
         print(json.dumps(result, sort_keys=True), flush=True)
         return result
 
@@ -111,16 +109,9 @@ class Coordinator:
     def process(self):
         retry_delay = None
         retry_kind = None
-        maturity_recheck_used = False
         while True:
             signaled = self.pending.wait(timeout=retry_delay)
             self.pending.clear()
-            if signaled:
-                # A new completed-file event may warrant exactly one
-                # post-grace eligibility check, never periodic download
-                # polling or busy-to-idle image-queue triggers.
-                maturity_recheck_used = False
-                retry_kind = None
             try:
                 if not signaled and retry_kind == "metadata":
                     result = self.retry_pending_metadata()
@@ -128,30 +119,19 @@ class Coordinator:
                     if retry_delay is not None:
                         retry_kind = "metadata"
                     else:
-                        # The series metadata are now available. Run one new
-                        # reconciliation for a complete updated status; this
-                        # is NOT triggered by the global Shoko image queue.
+                        # Once metadata are available, refresh the full report.
                         self.pending.set()
                         retry_kind = None
                     continue
 
                 result = self.reconcile(self.do_apply)
                 retry_delay = retry_delay_for(result)
+                retry_kind = "metadata" if retry_delay is not None else None
                 if retry_delay is not None:
-                    retry_kind = "metadata"
-                elif (not maturity_recheck_used
-                      and result.get("maturing_nonpartial_files", 0) > 0):
-                    retry_delay = self.minimum_age + 2
-                    retry_kind = "maturity_once"
-                    maturity_recheck_used = True
-                else:
-                    retry_delay = None
-                    retry_kind = None
-                if retry_delay is not None:
-                    print(f"Remaining eligible work recheck in up to {retry_delay}s "
-                          f"({retry_kind}; no Shoko global queue wait)", flush=True)
+                    print(f"Metadata recheck in up to {retry_delay}s "
+                          "(no global queue wait)", flush=True)
             except Exception as exc:
-                # Shoko may be restarting (HTTP 503); bounded API retry.
+                # Shoko might be restarting (HTTP 503). No file-age polling.
                 retry_delay = 30
                 retry_kind = "error"
                 print(f"Reconciliation event failed: {type(exc).__name__}: {exc}; "
@@ -173,12 +153,11 @@ def main(argv=None):
     parser.add_argument("--catalog", default="/var/cache/tethys/anime-offline-database.jsonl")
     parser.add_argument("--state", default="/var/lib/shoko-reconcile/seen.json")
     parser.add_argument("--plan", default="/var/lib/shoko-reconcile/realtime-plan.json")
-    parser.add_argument("--minimum-age", type=int, default=120)
+    parser.add_argument("--minimum-age", type=int, default=None,
+                        help="Legacy compatibility; ignored (qBittorrent handles completion)")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm", default="")
     args = parser.parse_args(argv)
-    if args.minimum_age < 60:
-        parser.error("--minimum-age must be at least 60 seconds")
     try:
         do_apply = resolve_apply_mode(
             args.apply, args.confirm, os.getenv("SHOKO_RECONCILE_APPLY", ""))
@@ -191,7 +170,7 @@ def main(argv=None):
     api = ShokoAPI(args.url, key)
     catalog = AliasCatalog(args.catalog) if args.catalog and Path(args.catalog).is_file() else None
     coordinator = Coordinator(
-        api, catalog=catalog, minimum_age=args.minimum_age,
+        api, catalog=catalog,
         state_path=args.state, plan_path=args.plan, do_apply=do_apply)
 
     try:
