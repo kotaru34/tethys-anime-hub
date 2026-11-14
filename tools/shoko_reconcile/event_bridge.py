@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Event-driven Shoko 5.3.3 Reconciler using the native SignalR aggregate hub.
 
-Shoko sends Shoko:FileNotMatched for misses and Queue:QueueStateChanged
-for scheduler activity. Subscribes to both; linking checks file stability
-and individual series/episode readiness without waiting for unrelated Shoko
-queue jobs such as poster and character-image downloads.
+Subscribe only to Shoko:FileNotMatched, not image-related queue
+state events. Linking checks final-file stability and each target series/
+episode readiness without waiting for poster/character-image downloads.
 Use --apply only after confirming the dry-run behavior on your host.
 """
 from __future__ import annotations
@@ -35,23 +34,12 @@ def events_in(message):
             yield value.get("target"), value.get("arguments") or []
 
 
-def queue_idle(state):
-    """SignalR queue state is idle only when there are no active/pending jobs."""
-    if not isinstance(state, dict):
-        return False
-    return (bool(state.get("Running", True))
-            and int(state.get("TotalCount") or 0) == 0
-            and int(state.get("WaitingCount") or 0) == 0
-            and int(state.get("BlockedCount") or 0) == 0
-            and not state.get("CurrentlyExecuting"))
-
-
 def websocket_url(shoko_url):
     parts = urlsplit(shoko_url)
     if parts.scheme != "http" or parts.hostname not in ("localhost", "127.0.0.1", "::1"):
         raise ValueError("SignalR collector must connect to locally running Shoko over loopback")
     host = parts.netloc
-    return f"ws://{host}/signalr/aggregate?feeds=shoko,queue"
+    return f"ws://{host}/signalr/aggregate?feeds=shoko"
 
 
 def retry_delay_for(result, *, metadata_retry_seconds=60):
