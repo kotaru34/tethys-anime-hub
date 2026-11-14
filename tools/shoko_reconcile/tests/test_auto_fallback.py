@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from auto_fallback import is_safe_automatic_link, auto_link_rejection_reason, keep_safe_rows, stable_unknowns, review_diagnostics
+from auto_fallback import is_safe_automatic_link, auto_link_rejection_reason, keep_safe_rows, eligible_final_files, review_diagnostics
 
 
 class AutoFallbackTests(unittest.TestCase):
@@ -157,43 +157,49 @@ class AutoFallbackTests(unittest.TestCase):
         row["episode"] = 1
         self.assertFalse(is_safe_automatic_link(self.group([]), row))
 
-    def test_qbittorrent_partial_files_are_never_polled_or_eligible(self):
+    def test_qbittorrent_partial_files_are_excluded_immediately(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "Episode.mkv.!qB").write_bytes(b"partial")
             (root / "Episode2.mkv.qb!").write_bytes(b"partial")
+            (root / "Episode3.mkv").write_bytes(b"completed")
             unknown = [
                 {"ID": 1, "Locations": [{"RelativePath": "Episode.mkv.!qB"}]},
                 {"ID": 2, "Locations": [{"RelativePath": "Episode2.mkv.qb!"}]},
+                {"ID": 3, "Locations": [{"RelativePath": "Episode3.mkv"}]},
             ]
-            current, eligible = stable_unknowns(
-                unknown, {}, now=10000000, media_root=root, minimum_age=60)
-            self.assertEqual(current, {})
-            self.assertEqual(eligible, set())
+            self.assertEqual(eligible_final_files(unknown, media_root=root), {3})
 
-    def test_repeated_stable_file_is_eligible_only_after_age(self):
+    def test_final_file_is_eligible_on_first_event_without_age_wait(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             folder = root / "Example"
             folder.mkdir()
             file = folder / "01.mkv"
             file.write_bytes(b"data")
-            now = file.stat().st_mtime + 1000
             unknown = [{"ID": 42, "Locations": [{"RelativePath": "Example/01.mkv"}]}]
-            state, eligible = stable_unknowns(unknown, {}, now=now, media_root=root, minimum_age=900)
-            self.assertEqual(eligible, set())
-            _, eligible = stable_unknowns(unknown, state, now=now + 901, media_root=root, minimum_age=900)
-            self.assertEqual(eligible, {42})
+            # The first pass must include even a just-created final file.
+            self.assertEqual(eligible_final_files(unknown, media_root=root), {42})
             file.write_bytes(b"more data")
-            _, eligible = stable_unknowns(unknown, state, now=now + 902, media_root=root, minimum_age=900)
-            self.assertEqual(eligible, set())
+            self.assertEqual(eligible_final_files(unknown, media_root=root), {42})
 
-    def test_path_escape_is_never_eligible(self):
+    def test_empty_missing_and_escaped_paths_cannot_be_linked(self):
         with tempfile.TemporaryDirectory() as tmp:
-            unknown = [{"ID": 1, "Locations": [{"RelativePath": "../outside.mkv"}]}]
-            state, eligible = stable_unknowns(unknown, {}, now=10000, media_root=tmp, minimum_age=60)
-            self.assertEqual(state, {})
-            self.assertEqual(eligible, set())
+            root = Path(tmp)
+            (root / "empty.mkv").touch()
+            outside = Path(tmp).parent / ("outside-" + root.name + ".mkv")
+            outside.write_bytes(b"data")
+            try:
+                (root / "out.mkv").symlink_to(outside)
+                unknown = [
+                    {"ID": 1, "Locations": [{"RelativePath": "../outside.mkv"}]},
+                    {"ID": 2, "Locations": [{"RelativePath": "empty.mkv"}]},
+                    {"ID": 3, "Locations": [{"RelativePath": "does-not-exist.mkv"}]},
+                    {"ID": 4, "Locations": [{"RelativePath": "out.mkv"}]},
+                ]
+                self.assertEqual(eligible_final_files(unknown, media_root=root), set())
+            finally:
+                outside.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
