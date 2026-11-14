@@ -218,6 +218,30 @@ not arbitrary data under `/Anime`; total recognized anime/series do not
 equal the number of release folders. Interpret `du`, Shoko's UI size,
 and folder counts accordingly.
 
+## Curated recovery of ambiguous first seasons and split cours
+
+A plain title match can score 1.0 yet still be vetoed by a nearby alternate
+AniDB anime entry — e.g. an older OVA, a later season or a Part 2. Do **not**
+globally loosen the unattended `>=0.98` candidate score and `>=0.18` margin.
+Add *exact-title* public-source AniDB crosswalks to `known_aliases.json`
+instead. Entries are selected only when the cleaned full release title matches
+an explicit alias; the actual file still needs a positive episode number,
+supported season and live destination episode in Shoko.
+
+The current source-anchored records include Horimiya TV, the first and second
+Maou Gakuin works plus the independent second cour, Yofukashi S1, Bofuri S1,
+ATRI, Mahoutsukai Reimeiki, Mashle S2, Mato S1, and the one-episode standalone
+Shinmai Maou Departures OVA. No private host inventory or torrent path is
+committed in this list. These records should be corrected if any corresponding
+AniDB work identity is found to differ from the cited Shoko/AniDB source.
+A season-neutral parent folder is **not** automatically season 2; only
+consistently explicit S02E filenames can activate the season-2 alias.
+
+Known gaps remain genuine extras, unidentified OVAs, unnumbered entries with
+no independent episode evidence, and any newly imported titles for which no
+source-backed crosswalk exists. Lowering counts is not a justification to
+fabricate AniDB File records or force an episode assignment.
+
 ## AUTO-LINK review backlog exceeds 5%
 
 The Shoko dashboard lists TV Series, Movies, Web and other recognized work

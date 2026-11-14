@@ -13,7 +13,7 @@ import re
 
 from matching import (clean_release_title, match_key, season_hint,
                       classify_episode, type_hint, similarity, target_season_supported,
-                      parenthetical_title_variants)
+                      parenthetical_title_variants, group_season_evidence)
 
 _SEQUEL = re.compile(r"(?i)(?<!\w)(?:season\s*0*[2-9]\d?|s0*[2-9]\d?|[2-9]\d?(?:nd|rd|th)\s+season|(?:ii|iii|iv|v|vi))\b")
 _PART = re.compile(r"(?i)\bpart[\s_.-]*0*([1-9]\d?)\b")
@@ -110,14 +110,22 @@ def known_aliases(path: str | Path | None = None):
 
 
 def _choose_public_crosswalk(group: dict, records: list[dict]):
-    """Only anchored by a *full* title; no noisy fuzzy acceptance."""
+    """Require exact public work alias, including explicit episode season if nested.
+
+    A season-neutral parent directory cannot supply an S2 identity on its
+    own. If *all* unknown files have explicit consistent S02E markers, add
+    one season-qualified query to permit a curated Season 2 crosswalk.
+    Never use fuzzy/partial alias containment for automatic linking.
+    """
     folder = _release_title(group["folder"])
-    # Special case for Ukrainian release names: preserve subtitles like 'Diary'
-    # as discriminators, never collapse all Slime franchise entries to S1.
-    key = _key(folder)
+    keys = {_key(folder)}
+    if season_hint(folder) is None:
+        season, conflict = group_season_evidence(group["folder"], group.get("files") or [])
+        if not conflict and season is not None and season >= 2:
+            keys.add(_key(f"{folder} Season {season}"))
     matches = []
     for entry in records:
-        if any(_key(alias) == key for alias in entry.get("aliases", [])):
+        if any(_key(alias) in keys for alias in entry.get("aliases", []) if alias):
             matches.append(entry)
     return matches[0] if len(matches) == 1 else None
 
@@ -145,6 +153,20 @@ def _episode_issues(g: dict, record: dict | None):
         # Movie descriptor does not always occur in title, e.g. Memory Snow.
         if (r.get("episode_type") == "Movie" and not r.get("episode")):
             r["episode"] = 1
+        # A verified *single-episode* standalone OVA/ONA can use E01 even
+        # without a number in its release filename. Never infer this from
+        # title similarity alone or from a multi-file release.
+        if (r.get("episode_type") == "Unknown" and not r.get("episode")
+                and record and str(record.get("type") or "").casefold() in ("ova", "ona")
+                and record.get("episodes") is not None
+                and int(record["episodes"]) == 1
+                and len(rows) == 1 and r.get("target_anidb_id")
+                and g.get("mode") == "public_crosswalk"
+                and not any(t in path.casefold() for t in ("/extra/", "/bonus/", "/trailer/"))):
+            r["episode_type"] = "Episode"
+            r["episode"] = 1
+            r["mode"] = "public_crosswalk"
+            r["reason"] = "curated exact standalone OVA/ONA identity with one metadata episode"
         # A filename like S02E14 in (Season 2 Part 2) is an *absolute*
         # episode; AniDB part 2 contains 1..12.
     if _part(folder) == 2 and record and str(record.get("type", "")).lower() in ("tv", "ona", "unknown"):
@@ -228,6 +250,7 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                 selected_record = {"anidb_id": ident, "title": crosswalk["title"],
                                    "type": crosswalk.get("type", "Unknown"),
                                    "episodes": crosswalk.get("episodes"),
+                                   "season": crosswalk.get("season"),
                                    "source": "curated_crosswalk"}
             else:
                 # Inject trusted media type and series episode count if absent.
@@ -236,6 +259,15 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                     selected_record["type"] = crosswalk.get("type") or "Unknown"
                 if not selected_record.get("episodes"):
                     selected_record["episodes"] = crosswalk.get("episodes")
+                if selected_record.get("season") is None and crosswalk.get("season") is not None:
+                    selected_record["season"] = crosswalk["season"]
+            # The later per-file season safety guard consumes the ranked
+            # group candidate, not just the temporary selected record.
+            for candidate in g.get("candidates", []):
+                if (int(candidate.get("anidb_id") or -1) == ident
+                        and candidate.get("season") is None
+                        and crosswalk.get("season") is not None):
+                    candidate["season"] = crosswalk["season"]
             reason = "exact localized/public-series alias crosswalk"
         elif best and top_score >= 0.91 and top_score - second_score >= 0.075:
             selected_record = best
