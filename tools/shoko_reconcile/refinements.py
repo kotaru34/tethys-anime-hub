@@ -155,6 +155,19 @@ def unique_exact_work_candidate(group: dict):
             continue
         title = str(candidate.get("title") or "")
         aliases = [title, str(candidate.get("matched_alias") or "")]
+        # Ranking's single best fuzzy alias may not be the full release title.
+        # Retain and check the exact Shoko and offline-catalog titles instead.
+        aliases.extend(name for name in candidate.get("aliases") or []
+                       if isinstance(name, str))
+        titles = candidate.get("Titles") or []
+        if isinstance(titles, dict):
+            titles = titles.values()
+        for item in titles:
+            if isinstance(item, str):
+                aliases.append(item)
+            elif isinstance(item, dict):
+                aliases.extend(item[k] for k in ("Name", "Title", "Value", "Text")
+                               if isinstance(item.get(k), str))
         if not any(_key(name) == key for name in aliases if name):
             continue
         candidate_season = candidate.get("season")
