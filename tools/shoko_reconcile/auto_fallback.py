@@ -69,9 +69,17 @@ def auto_link_rejection_reason(group, row):
     elif not target_season_supported(group, row):
         return "candidate_season_unsupported"
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
-                    "nested_exact_work", "auto_evidence", "strong_context",
-                    "sibling_consensus"}:
+                    "nested_exact_work", "exact_work_title", "auto_evidence",
+                    "strong_context", "sibling_consensus"}:
         return "mode_requires_manual_review"
+    if mode == "exact_work_title":
+        # Independently recompute full-title uniqueness at the write boundary.
+        # Candidate scores are only fuzzy ranks; an exact title identity
+        # must not be rejected for having a near-score non-exact sequel.
+        from refinements import unique_exact_work_candidate
+        unique = unique_exact_work_candidate(group)
+        if unique is None or int(unique["anidb_id"]) != row.get("target_anidb_id"):
+            return "exact_work_title_not_unique_or_changed"
     # AniDB "Other" is only auto-linked for publisher-verified overrides.
     kind = row.get("episode_type")
     allowed = ({"Episode", "Special", "Movie", "Other"} if mode == "approved_release"
