@@ -128,6 +128,13 @@ class CompleteTvBatchTests(unittest.TestCase):
             "verified_tv_batch_live_proof_missing"), 26)
         self.assertEqual(api.linked, [])
 
+    def test_dated_sequel_alias_cannot_masquerade_as_unmarked_tv(self):
+        p = plan()
+        p["groups"][0]["candidates"] = [{
+            "anidb_id": 12345, "title": TITLE + " (2024)",
+            "type": "TV", "aliases": [TITLE]}]
+        self.assertIsNone(unique_tv_work(p["groups"][0]))
+
     def test_sequel_root_or_unnumbered_work_not_accepted(self):
         p = plan()
         p["groups"][0]["folder"] = "Kono Yo no Hate de Koi o Utau Shoujo YU-NO"
