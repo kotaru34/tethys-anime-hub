@@ -242,6 +242,32 @@ no independent episode evidence, and any newly imported titles for which no
 source-backed crosswalk exists. Lowering counts is not a justification to
 fabricate AniDB File records or force an episode assignment.
 
+## Unique full-title AniDB work identity (no global fuzzy threshold lowering)
+
+A 1.00 score and a rival at 0.90 is *not necessarily ambiguous*: a
+different season/cour or OVA is often a somewhat similar title. The old
+`score >=0.98 AND margin >=0.18` global gate blocked otherwise distinctive
+exact-title matches (including first-season TV, `High School DxD BorN`,
+`To LOVE-Ru`, and full-name one-season releases).
+
+The new `exact_work_title` mode is **not** merely a more permissive fuzzy
+threshold. It requires exactly **one AniDB ID** among the ranked Shoko/AniDB
+candidates with a **complete normalized canonical/alias title equal to the
+complete cleaned release title**. No source-title substring, prefix,
+truncated franchise root, or generic `S2` erasure counts. Season, Part 2,
+movie/OVA media type, positive episode numbering and live destination
+episode checks remain independent gates. If two IDs share the same exact
+alias or disagree about a cour, the whole release remains manual review.
+At the actual AUTO-LINK write boundary, that unique exact-title evidence is
+recomputed; a forged/reused plan cannot bypass it.
+
+A second fix promotes verified public exact-title crosswalks even when the
+earlier fuzzy matching had *already assigned* the provisional
+`auto_evidence` mode. The previous refinement only upgraded
+`review/episode_review` rows, causing known exact crosswalks to be ignored
+for many new Shoko imports. Review counts can still grow during active
+torrent ingestion, and real `--status` remains the authority for <=5%.
+
 ## AUTO-LINK review backlog exceeds 5%
 
 The Shoko dashboard lists TV Series, Movies, Web and other recognized work
