@@ -185,9 +185,12 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
     # For a long-running RSS release, already recognized E01/E02 in the same
     # exact directory are stronger independent work evidence than a fuzzy
     # title match. Importing XRefs is read-only; never weaken safety checks.
+    sibling_reference = None
     try:
-        from local_siblings import promote_linked_siblings
-        summary["sibling_consensus_promoted"] = promote_linked_siblings(api, plan, eligible)
+        from local_siblings import sibling_index, promote_linked_siblings
+        sibling_reference = sibling_index(api)
+        summary["sibling_consensus_promoted"] = promote_linked_siblings(
+            api, plan, eligible, reference=sibling_reference)
     except Exception as exc:
         # A missing/unsupported XRefs list should never prevent the existing
         # safe-title policy from doing its work.
@@ -212,7 +215,8 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
         if do_apply:
             result = apply(api, safe_plan,
                            journal=str(Path(plan_path).with_suffix(".journal.json")),
-                           refresh_requests=refresh_requests)
+                           refresh_requests=refresh_requests,
+                           sibling_reference=sibling_reference)
             summary.update({"submitted": result["submitted"], "errors": result["errors"],
                             "awaiting_series_refresh": result["awaiting_series_refresh"],
                             "deferred": result["deferred"],
