@@ -12,49 +12,40 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import sys
-import time
 
 from catalog import AliasCatalog
 from matching import target_season_supported
 from shoko_reconcile import ShokoAPI, _write_private_json, apply, prepare
 
 
-def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
-    """Return IDs still unknown with unchanged filesystem identity over time."""
+def eligible_final_files(files, *, media_root):
+    """Select Shoko-unknown final media files without any age/stability polling.
+
+    qBittorrent is the source of truth for download completion. Its .!qB/.qb!
+    partial files are excluded. Remaining checks only prevent stale/missing,
+    empty, or path-escaping media paths from entering a link plan.
+    """
     root = Path(media_root).resolve()
-    current = {}
     eligible = set()
     for record in files:
-        fid = int(record["ID"])
         locs = record.get("Locations") or []
         if not locs:
             continue
         rel = str(locs[0].get("RelativePath") or "")
         pure = PurePosixPath(rel)
-        # qBittorrent uses a .!qB / .qb! suffix while a file is downloading.
-        # An incomplete torrent belongs exclusively to qBittorrent; do not
-        # inspect it, schedule link attempts, or retry it via file polling.
-        if rel.casefold().endswith((".!qb", ".qb!")):
-            continue
-        if not rel or pure.is_absolute() or ".." in pure.parts:
+        if (not rel or rel.casefold().endswith((".!qb", ".qb!"))
+                or pure.is_absolute() or ".." in pure.parts):
             continue
         try:
             full = (root / rel).resolve(strict=True)
             if not full.is_relative_to(root) or not full.is_file():
                 continue
-            st = full.stat()
+            if full.stat().st_size <= 0:
+                continue
         except (OSError, RuntimeError):
             continue
-        if st.st_size <= 0:
-            continue
-        previous = old_state.get(str(fid), {})
-        fingerprint = {"path": rel, "size": st.st_size, "mtime_ns": st.st_mtime_ns}
-        same = all(previous.get(k) == v for k, v in fingerprint.items())
-        first_seen = float(previous.get("first_seen", now)) if same else now
-        current[str(fid)] = {**fingerprint, "first_seen": first_seen}
-        if same and now - first_seen >= minimum_age and now - st.st_mtime >= minimum_age:
-            eligible.add(fid)
-    return current, eligible
+        eligible.add(int(record["ID"]))
+    return eligible
 
 
 def auto_link_rejection_reason(group, row):
@@ -168,31 +159,24 @@ def review_diagnostics(plan, eligible, *, max_groups=12):
     }
 
 
-def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
-        minimum_age=900, now=None, do_apply=False, refresh_requests=None):
-    now = time.time() if now is None else now
+def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
+        minimum_age=None, now=None, do_apply=False, refresh_requests=None):
+    # state_path, minimum_age, and now are retained only for compatibility
+    # with earlier callers. No age checks, state-file I/O or maturity timers.
     root = Path(media_root)
     if not root.is_dir() or not os.path.ismount(root):
         raise RuntimeError(f"Refusing to reconcile: {root} is not a mounted media directory")
-    state_file = Path(state_path)
-    old_state = json.loads(state_file.read_text()) if state_file.is_file() else {}
     unknown = api.unrecognized()
-    current, eligible = stable_unknowns(
-        unknown, old_state, now=now, media_root=root, minimum_age=minimum_age)
-    _write_private_json(state_file, current)
+    eligible = eligible_final_files(unknown, media_root=root)
     summary = {"currently_unrecognized": len(unknown),
-               "mature_stable_unknown": len(eligible),
-               # This count excludes any .qb! / .!qB in-progress files.
-               # A one-time post-event check is only relevant to final
-               # filenames which have not yet passed the stability guard.
-               "maturing_nonpartial_files": len(current) - len(eligible),
+               "eligible_final_files": len(eligible),
                "approved_for_auto": 0,
                "needs_review": 0, "submitted": 0}
     if not eligible:
         return summary
     # Do NOT wait for Shoko's global queue to become empty. It includes
     # non-blocking image/creator/character fetches which may take hours.
-    # Per-file eligibility is enforced by stable_unknowns() above, while
+    # Final-file eligibility is enforced by eligible_final_files() above, while
     # apply() rechecks the currently-unrecognized file, original path,
     # local AniDB series identity, and actual destination episode.
     # If series/episodes are not ready yet, apply() queues only that series
@@ -240,14 +224,14 @@ def main(argv=None):
     parser.add_argument("--url", default=os.getenv("SHOKO_URL", "http://127.0.0.1:8111"))
     parser.add_argument("--catalog")
     parser.add_argument("--media-root", default="/Anime")
-    parser.add_argument("--state", default="/var/lib/shoko-reconcile/seen.json")
+    parser.add_argument("--state", default="/var/lib/shoko-reconcile/seen.json",
+                        help="Legacy compatibility; ignored (no state-file I/O)")
     parser.add_argument("--plan", default="/var/lib/shoko-reconcile/auto-plan.json")
-    parser.add_argument("--minimum-age", type=int, default=900, metavar="SECONDS")
+    parser.add_argument("--minimum-age", type=int, default=None, metavar="SECONDS",
+                        help="Legacy compatibility; ignored (no age-based delays)")
     parser.add_argument("--apply", action="store_true", help="Submit safe links, otherwise dry-run")
     parser.add_argument("--confirm", help="Must equal LINK for --apply")
     args = parser.parse_args(argv)
-    if args.minimum_age < 60:
-        parser.error("--minimum-age must be at least 60 seconds")
     if args.apply and args.confirm != "LINK":
         parser.error("--apply requires --confirm LINK")
     key = os.getenv("SHOKO_API_KEY")
