@@ -31,7 +31,7 @@ RE_EXTRA_LABEL = re.compile(r"(?i)(?:^|[\s._-])(?:NCOP|NCED|OP|ED|PV)\s*\d{0,2}(
 RE_SPECIAL_N = re.compile(r"(?i)(?:specials?|ova|oad|ona|sp)[\s._-]*0*([1-9]\d?)(?!\d)")
 RE_LEAD_QUALITY = re.compile(r"(?i)^(?:\s*(?:720|1080|2160)p\s+)+")
 RE_EXTRA = re.compile(r"(?i)(?:^|[/_.\s-])(?:extras?|creditless|ncop|nced|nc|op\s*\d*|ed\s*\d*|preview|pv\s*\d*|trailer|teaser|bonus|menu|cm\s*\d*|promos?|opening|ending)(?:$|[/_.\s-])")
-RE_SPECIAL = re.compile(r"(?i)(?:^|[/_.\s-])(?:specials?|ova|oad|ona|sp\s*\d*)(?:$|[/_.\s-])")
+RE_SPECIAL = re.compile(r"(?i)(?:^|[/_.\s(\[\-])(?:specials?|ova|oad|ona|sp\s*\d*)(?:$|[/_.\s)\]\-])")
 RE_MOVIE = re.compile(r"(?i)(?:^|[/_.\s-])(?:movie|film|eiga|gekijouban|фильм|фільм)(?:$|[/_.\s-])")
 
 
