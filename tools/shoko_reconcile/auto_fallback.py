@@ -52,55 +52,55 @@ def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
     return current, eligible
 
 
-def is_safe_automatic_link(group, row):
-    """Approve only well-evidenced work identity; episode checked again by apply()."""
+def auto_link_rejection_reason(group, row):
+    """Return the specific failed safety gate, or None for an approved row.
+
+    Do not confuse the plan's 'mode'/'reason' (title inference) with the
+    independent gates for automatic linking. This is the one source of truth
+    for both the write policy and the operator's read-only diagnostics.
+    """
     mode = row.get("mode")
     # A local sibling consensus is anchored by Shoko's *existing* exact-work
-    # XRefs and same-season, same-directory episode files, not fuzzy title
-    # search. Season checks run in promote_linked_siblings() before marking.
+    # XRefs and same-season, same-directory episode files, not fuzzy titles.
     if mode == "sibling_consensus":
-        if row.get("episode_type") != "Episode" or int(row.get("sibling_evidence_count") or 0) < 2:
-            return False
+        if (row.get("episode_type") != "Episode"
+                or int(row.get("sibling_evidence_count") or 0) < 2):
+            return "insufficient_sibling_episode_evidence"
     elif not target_season_supported(group, row):
-        return False
+        return "candidate_season_unsupported"
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
                     "nested_exact_work", "auto_evidence", "strong_context",
                     "sibling_consensus"}:
-        return False
-    # AniDB "Other" is *not* normally safe for auto matching. Allow O01/O02
-    # only for an explicit publisher-verified release override.
+        return "mode_requires_manual_review"
+    # AniDB "Other" is only auto-linked for publisher-verified overrides.
     kind = row.get("episode_type")
-    if kind not in ({"Episode", "Special", "Movie", "Other"} if mode == "approved_release"
-                    else {"Episode", "Special", "Movie"}):
-        return False
+    allowed = ({"Episode", "Special", "Movie", "Other"} if mode == "approved_release"
+               else {"Episode", "Special", "Movie"})
+    if kind not in allowed:
+        return "unsupported_episode_type"
     aid, ep = row.get("target_anidb_id"), row.get("episode")
     if not isinstance(aid, int) or not isinstance(ep, int) or ep <= 0:
-        return False
-    # No automatic interpretation of shifted/recap episode numbers.
+        return "missing_work_or_episode_identity"
     src = row.get("source_episode")
     if src is not None and src != ep:
-        return False
-    # Only explicitly verified release-specific overrides bypass fuzzy matching.
-    # Legacy group-level vetoes for all OVAs were removed: they cost 9/981
-    # viable files in the original archive, including correctly identified OVA.
-    # "strong_context" is an independently refined *title* choice, but its
-    # initial 0.91 / 0.075 margins are NOT safe enough for unattended use.
-    # Require exactly the same strict independent score and separation as
-    # "auto_evidence". Candidate scores are ranking evidence, not calibrated
-    # probabilities of a correct match.
+        return "episode_number_shift_requires_review"
     if mode in {"auto_evidence", "strong_context"}:
         candidates = group.get("candidates") or []
         selected = [c for c in candidates if c.get("anidb_id") == aid]
         if not selected:
-            return False
-        chosen = selected[0]
-        score = float(chosen.get("score") or 0)
+            return "selected_candidate_not_in_ranked_results"
+        score = float(selected[0].get("score") or 0)
         if score < 0.98:
-            return False
+            return "selected_candidate_score_below_0.98"
         if any(float(c.get("score") or 0) >= score - 0.18
                for c in candidates if c.get("anidb_id") != aid):
-            return False
-    return True
+            return "competing_candidate_within_0.18"
+    return None
+
+
+def is_safe_automatic_link(group, row):
+    """Approve only if every evidence, season, episode, and margin gate passes."""
+    return auto_link_rejection_reason(group, row) is None
 
 
 def keep_safe_rows(plan, eligible):
@@ -122,24 +122,23 @@ def keep_safe_rows(plan, eligible):
 
 
 def review_diagnostics(plan, eligible, *, max_groups=12):
-    """Explain conservative rejections, without adding speculative links.
-
-    Group names and file paths stay in a private plan on the Shoko host;
-    the journal contains only counts and at most 12 release folder names.
-    """
+    """Explain why *actual automatic-link gates* rejected rows, not title prose."""
     from collections import Counter
     by_mode = Counter()
-    by_reason = Counter()
+    by_gate = Counter()
     by_group = Counter()
+    by_original_reason = Counter()
     examples = {}
     for group in plan.get("groups", []):
         for row in group.get("files", []):
-            if int(row["file_id"]) not in eligible or is_safe_automatic_link(group, row):
+            if int(row["file_id"]) not in eligible:
                 continue
-            mode = str(row.get("mode") or "unclassified")
-            by_mode[mode] += 1
-            reason = str(row.get("reason") or group.get("reason") or "unclassified")
-            by_reason[reason] += 1
+            gate = auto_link_rejection_reason(group, row)
+            if gate is None:
+                continue
+            by_gate[gate] += 1
+            by_mode[str(row.get("mode") or "unclassified")] += 1
+            by_original_reason[str(row.get("reason") or group.get("reason") or "unclassified")] += 1
             folder = str(group.get("folder") or "unknown")
             by_group[folder] += 1
             examples.setdefault(folder, {"folder": folder, "group_mode": group.get("mode"),
@@ -149,7 +148,8 @@ def review_diagnostics(plan, eligible, *, max_groups=12):
         top.append({**examples[folder], "files": count})
     return {
         "review_by_mode": dict(sorted(by_mode.items())),
-        "review_by_reason": dict(by_reason.most_common(8)),
+        "review_by_gate": dict(by_gate.most_common()),
+        "review_by_reason": dict(by_original_reason.most_common(8)),
         "review_top_groups": top,
         "review_groups_total": len(by_group),
     }
