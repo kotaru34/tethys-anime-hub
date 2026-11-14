@@ -130,5 +130,123 @@
       "No Game No Life - Zero"
     ],
     "source": "Shoko v2 exact-title candidate and known theatrical film"
+  },
+  {
+    "title": "Horimiya",
+    "anidb_id": 15733,
+    "type": "TV",
+    "episodes": 13,
+    "aliases": [
+      "Horimiya"
+    ],
+    "source": "Shoko 5.3.3 live AniDB search: exact unnumbered Horimiya TV release (not Hori-san to Miyamura-kun OVA)"
+  },
+  {
+    "title": "Maou Gakuin no Futekigousha: Shijou Saikyou no Maou no Shiso, Tensei shite Shison-tachi no Gakkou e Kayou",
+    "anidb_id": 15131,
+    "type": "TV",
+    "episodes": 13,
+    "aliases": [
+      "Maou Gakuin no Futekigousha"
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: first 13-episode TV work"
+  },
+  {
+    "title": "Yofukashi no Uta",
+    "anidb_id": 16971,
+    "type": "TV",
+    "episodes": 13,
+    "aliases": [
+      "Yofukashi no Uta",
+      "Call of the Night"
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: original TV series, not Season 2"
+  },
+  {
+    "title": "ATRI -My Dear Moments-",
+    "anidb_id": 17635,
+    "type": "TV",
+    "episodes": 13,
+    "aliases": [
+      "ATRI -My Dear Moments- Season 01",
+      "Atri: My Dear Moments"
+    ],
+    "source": "https://www.wikidata.org/wiki/Q122381959; Shoko live AniDB candidate"
+  },
+  {
+    "title": "Itai no wa Iya nano de Bougyoryoku ni Kyokufuri Shitai to Omoimasu.",
+    "anidb_id": 14523,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Itai no wa Iya nano de Bougyoryoku ni Kyokufuri Shitai to Omoimasu",
+      "Bofuri: I Don't Want to Get Hurt, So I'll Max Out My Defense."
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: original TV work, not season 2"
+  },
+  {
+    "title": "Maou Gakuin no Futekigousha II",
+    "anidb_id": 16101,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Maou Gakuin no Futekigousha S2",
+      "Maou Gakuin no Futekigousha Season 2"
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: second-season Part 1 (E01-E12)"
+  },
+  {
+    "title": "Maou Gakuin no Futekigousha II Part 2",
+    "anidb_id": 16102,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Maou Gakuin no Futekigousha S2 Part 2",
+      "Maou Gakuin no Futekigousha S2 Part2"
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: second-season Part 2 (local E01-E12)"
+  },
+  {
+    "title": "Mahoutsukai Reimeiki",
+    "anidb_id": 16280,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Mahoutsukai Reimeiki (The Dawn of the Witch) Season 1",
+      "Mahoutsukai Reimeiki",
+      "The Dawn of the Witch"
+    ],
+    "source": "https://www.wikidata.org/wiki/Q108088427; https://anilist.co/anime/133175"
+  },
+  {
+    "title": "Mashle: Shinkakusha Kouho Senbatsu Shiken-hen",
+    "anidb_id": 18088,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Mashle - Magic And Muscles Season 2",
+      "Mashle: Magic and Muscles Season 2"
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: distinct Season 2 work"
+  },
+  {
+    "title": "Mato Seihei no Slave",
+    "anidb_id": 16982,
+    "type": "TV",
+    "episodes": 12,
+    "aliases": [
+      "Mato Seihei no Slave"
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: original work, not sequels"
+  },
+  {
+    "title": "Shinmai Maou no Testament Departures",
+    "anidb_id": 13543,
+    "type": "OVA",
+    "episodes": 1,
+    "aliases": [
+      "Shinmai Maou no Testament Departures"
+    ],
+    "source": "Shoko 5.3.3 live AniDB candidate: standalone Departures OVA work"
   }
 ]
