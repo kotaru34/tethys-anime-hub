@@ -380,6 +380,13 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
             if row.get("path") not in paths:
                 defer("source_path_changed", row)
                 continue
+            # A stored plan (including metadata retries) may predate new
+            # classification rules. Re-validate OVA identity at write time.
+            from auto_fallback import special_identity_rejection_reason
+            special_error = special_identity_rejection_reason(group, row)
+            if special_error:
+                defer(special_error, row)
+                continue
 
             if mode in ("sibling_consensus", "verified_second_season"):
                 # Recheck exact-directory recognized XRefs; the second-season
