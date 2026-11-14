@@ -39,19 +39,19 @@ class KnownPublicTitleRecoveryTests(unittest.TestCase):
     def test_public_title_variants_select_correct_distinct_work(self):
         fixtures = [
             ("[Group] Horimiya [BDRip 1080p]", "Horimiya - 01.mkv", 15733),
-            ("Maou Gakuin no Futekigousha - AniLibria.TV [WEBRip 1080p HEVC]",
-             "Maou_Gakuin_no_Futekigousha_[01]_[AniLibria_TV].mkv", 15131),
+            ("Maou Gakuin no Futekigousha [WEBRip 1080p HEVC]",
+             "Maou_Gakuin_no_Futekigousha_[01].mkv", 15131),
             ("[Group] Yofukashi no Uta [WEB-DL 1080p]", "Yofukashi no Uta 01.mkv", 16971),
-            ("[Judas] ATRI -My Dear Moments- (Season 01) [1080p][HEVC x265 10bit][Multi-Subs]v2",
-             "[Judas] ATRI - S01E01v2.mkv", 17635),
-            ("Itai no wa Iya nano de Bougyoryoku ni Kyokufuri Shitai to Omoimasu - AniLibria.TV [WEBRip 1080p HEVC]",
-             "Itai_no_wa_Iya_nano_de_Bougyoryoku_ni_Kyokufuri_Shitai_to_Omoimasu_[01].mkv", 14523),
-            ("Maou Gakuin no Futekigousha S2 - AniLibria.TV [WEBRip 1080p HEVC]",
-             "Maou_Gakuin_no_Futekigousha_S2_[01].mkv", 16101),
-            ("Maou Gakuin no Futekigousha S2 Part 2 - AniLibria [WEBRip 1080p HEVC]",
-             "Maou_Gakuin_no_Futekigousha_S2_Part2_[01].mkv", 16102),
-            ("[Judas] Mahoutsukai Reimeiki (The Dawn of the Witch) (Season 1) [1080p][HEVC x265 10bit][Multi-Subs]",
-             "[Judas] Mahoutsukai Reimeiki - S01E01.mkv", 16280),
+            ("[Group] ATRI -My Dear Moments- (Season 01) [1080p][HEVC x265 10bit][Multi-Subs]v2",
+             "[Group] ATRI - S01E01v2.mkv", 17635),
+            ("Itai no wa Iya nano de Bougyoryoku ni Kyokufuri Shitai to Omoimasu [WEBRip 1080p HEVC]",
+             "Itai no wa Iya - 01.mkv", 14523),
+            ("Maou Gakuin no Futekigousha S2 [WEBRip 1080p HEVC]",
+             "Maou S02E01.mkv", 16101),
+            ("Maou Gakuin no Futekigousha S2 Part 2 [WEBRip 1080p HEVC]",
+             "Maou S02E01.mkv", 16102),
+            ("[Group] Mahoutsukai Reimeiki (The Dawn of the Witch) (Season 1) [1080p]",
+             "[Group] Mahoutsukai Reimeiki - S01E01.mkv", 16280),
         ]
         for folder, file_name, expected_id in fixtures:
             with self.subTest(folder=folder):
