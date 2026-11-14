@@ -12,7 +12,7 @@ from pathlib import PurePosixPath
 import re
 
 from matching import (classify_episode, clean_release_title, match_key,
-                      season_hint, target_season_supported, type_hint)
+                      season_hint, target_season_supported, type_hint, year_hint)
 
 
 def _compact_title(title):
@@ -61,6 +61,10 @@ def unique_tv_work(group):
     for candidate in group.get("candidates") or []:
         aid = candidate.get("anidb_id")
         if not isinstance(aid, int) or str(candidate.get("type") or "").casefold() not in {"tv", "tv series"}:
+            continue
+        # An unmarked source must not inherit the root alias of a dated
+        # sequel which Shoko/AniDB catalogs as a separate work by year.
+        if year_hint(str(candidate.get("title") or "")) and not year_hint(release):
             continue
         candidate_season = candidate.get("season")
         if candidate_season is None:
