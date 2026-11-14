@@ -163,17 +163,6 @@ def review_diagnostics(plan, eligible, *, max_groups=12):
     }
 
 
-def queue_is_busy(api):
-    """Wait until ordinary Shoko jobs finish before fallback manual linking."""
-    queue = api.request("GET", "/Queue")
-    if not isinstance(queue, dict):
-        raise RuntimeError("Shoko /Queue did not return expected status")
-    return (int(queue.get("TotalCount") or 0) > 0
-            or int(queue.get("WaitingCount") or 0) > 0
-            or int(queue.get("BlockedCount") or 0) > 0
-            or bool(queue.get("CurrentlyExecuting")))
-
-
 def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
         minimum_age=900, now=None, do_apply=False):
     now = time.time() if now is None else now
@@ -191,9 +180,13 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
                "needs_review": 0, "submitted": 0}
     if not eligible:
         return summary
-    if queue_is_busy(api):
-        summary["shoko_queue_busy"] = True
-        return summary
+    # Do NOT wait for Shoko's global queue to become empty. It includes
+    # non-blocking image/creator/character fetches which may take hours.
+    # Per-file eligibility is enforced by stable_unknowns() above, while
+    # apply() rechecks the currently-unrecognized file, original path,
+    # local AniDB series identity, and actual destination episode.
+    # If series/episodes are not ready yet, apply() queues only that series
+    # metadata refresh and returns awaiting_series_refresh.
     plan = prepare(api, overrides={}, catalog=catalog, aggressive=False)
     # For a long-running RSS release, already recognized E01/E02 in the same
     # exact directory are stronger independent work evidence than a fuzzy
