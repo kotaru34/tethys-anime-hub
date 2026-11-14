@@ -250,6 +250,7 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                 selected_record = {"anidb_id": ident, "title": crosswalk["title"],
                                    "type": crosswalk.get("type", "Unknown"),
                                    "episodes": crosswalk.get("episodes"),
+                                   "season": crosswalk.get("season"),
                                    "source": "curated_crosswalk"}
             else:
                 # Inject trusted media type and series episode count if absent.
@@ -258,6 +259,15 @@ def refine(plan: dict, records: list[dict] | None = None, catalog=None):
                     selected_record["type"] = crosswalk.get("type") or "Unknown"
                 if not selected_record.get("episodes"):
                     selected_record["episodes"] = crosswalk.get("episodes")
+                if selected_record.get("season") is None and crosswalk.get("season") is not None:
+                    selected_record["season"] = crosswalk["season"]
+            # The later per-file season safety guard consumes the ranked
+            # group candidate, not just the temporary selected record.
+            for candidate in g.get("candidates", []):
+                if (int(candidate.get("anidb_id") or -1) == ident
+                        and candidate.get("season") is None
+                        and crosswalk.get("season") is not None):
+                    candidate["season"] = crosswalk["season"]
             reason = "exact localized/public-series alias crosswalk"
         elif best and top_score >= 0.91 and top_score - second_score >= 0.075:
             selected_record = best
