@@ -325,8 +325,13 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
         from verified_tv_batch import promote_verified_tv_batch
         tv_evidence = {}
         summary["verified_tv_batch_promoted"] = promote_verified_tv_batch(
-            api, plan, eligible, diagnostics=tv_evidence)
+            api, plan, eligible, diagnostics=tv_evidence,
+            refresh_requests=refresh_requests, prefetch_missing=do_apply)
         summary["verified_tv_batch_evidence"] = tv_evidence
+        # Only an exact, season-safe target with a full parseable local block
+        # may request a metadata refresh; it still cannot link before proof.
+        summary["awaiting_tv_metadata"] = len(tv_evidence.get("pending_tv_metadata_aids") or [])
+        summary["pending_tv_metadata_aids"] = tv_evidence.get("pending_tv_metadata_aids") or []
     except Exception as exc:
         summary["verified_tv_batch_error"] = f"{type(exc).__name__}: {exc}"
     # Any remaining sibling E13+ whose episode does not exist in its
