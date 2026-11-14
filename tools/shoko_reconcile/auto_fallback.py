@@ -181,7 +181,12 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
         unknown, old_state, now=now, media_root=root, minimum_age=minimum_age)
     _write_private_json(state_file, current)
     summary = {"currently_unrecognized": len(unknown),
-               "mature_stable_unknown": len(eligible), "approved_for_auto": 0,
+               "mature_stable_unknown": len(eligible),
+               # This count excludes any .qb! / .!qB in-progress files.
+               # A one-time post-event check is only relevant to final
+               # filenames which have not yet passed the stability guard.
+               "maturing_nonpartial_files": len(current) - len(eligible),
+               "approved_for_auto": 0,
                "needs_review": 0, "submitted": 0}
     if not eligible:
         return summary
