@@ -167,52 +167,73 @@ def _batch_rows(group, eligible=None):
 
 
 def _episodes(api, aid, cache):
+    """Return the actual AniDB episode set and an explicit metadata state."""
     if aid not in cache:
         series = api.local_series(aid)
         ids = (series or {}).get("IDs") or {}
         if int(ids.get("AniDB") or -1) != aid or not ids.get("ID"):
-            cache[aid] = None
+            cache[aid] = (None, "series_not_local")
         else:
-            cache[aid] = api.available_episodes(int(ids["ID"]))
+            episodes = api.available_episodes(int(ids["ID"]))
+            cache[aid] = (episodes, "inventory_ready" if episodes else "episode_inventory_empty")
     return cache[aid]
 
 
-def tv_batch_proof(api, group, *, eligible=None, cache=None):
+def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None):
+    """Prove unique exact work and full AniDB E01..EN, reporting the blocker."""
     cache = {} if cache is None else cache
+
+    def reject(reason):
+        if failure is not None:
+            failure.append(reason)
+        return None
+
     candidate = unique_tv_work(group)
     if candidate is None:
-        return None
+        return reject("work_identity_not_unique")
     rows = _batch_rows(group, eligible)
     if not rows:
-        return None
+        return reject("file_episode_parsing_or_layout")
+    numbers = {number for number, _ in rows}
+    if numbers != set(range(1, len(numbers) + 1)):
+        return reject("non_contiguous_local_episode_numbers")
     aid = int(candidate["anidb_id"])
     if any(not target_season_supported(
             group, {**row, "target_anidb_id": aid, "mode": "strong_context"})
             for _, row in rows):
-        return None
-    episodes = _episodes(api, aid, cache)
+        return reject("candidate_season_unsupported")
+    episodes, metadata_state = _episodes(api, aid, cache)
     if not episodes:
-        return None
+        return reject(metadata_state)
     ordinary = {n for kind, n in episodes if kind == "Episode"}
     n = len(ordinary)
-    numbers = {number for number, _ in rows}
-    if not (6 <= n <= 26 and ordinary == set(range(1, n + 1))
-            and numbers == ordinary):
-        return None
+    if not (6 <= n <= 26 and ordinary == set(range(1, n + 1))):
+        return reject("anidb_ordinary_episodes_not_contiguous")
+    if numbers != ordinary:
+        return reject("partial_release" if numbers < ordinary else "episode_inventory_mismatch")
     return aid, n, [row for _, row in rows]
 
 
-def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None):
-    """Promote only complete TV batches; report title rejects without API calls."""
+def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None,
+                              refresh_requests=None, prefetch_missing=False,
+                              refresh_cooldown=900):
+    """Prove TV batches; optionally request only missing target-series metadata.
+
+    A matching title and a contiguous set of local episode numbers can
+    authorize a *targeted metadata refresh*, never a link. Only a future
+    recheck of the full live AniDB inventory can authorize the link itself.
+    """
     from collections import Counter
+    import time
 
     diagnostics = {} if diagnostics is None else diagnostics
     cache = {}
     promoted = 0
     title_gates = Counter()
-    # Report large groups first. This identifies precisely why a 26-file
-    # title did not even reach the expensive per-series episode API check.
+    proof_gates = Counter()
+    pending_aids = set()
     groups = plan.get("groups") or []
+    eligible = {int(item) for item in eligible}
     for group in sorted(groups, key=lambda g: -len(g.get("files") or [])):
         if len(group.get("files") or []) < 6:
             continue
@@ -237,22 +258,46 @@ def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None):
     diagnostics["title_gate_reasons"] = dict(sorted(title_gates.items()))
 
     for group in groups:
-        if unique_tv_work(group) is None:
+        candidate = unique_tv_work(group)
+        if candidate is None:
             continue
         diagnostics["exact_spaced_tv_groups"] = diagnostics.get("exact_spaced_tv_groups", 0) + 1
-        proof = tv_batch_proof(api, group, eligible=eligible, cache=cache)
+        failure = []
+        proof = tv_batch_proof(api, group, eligible=eligible, cache=cache,
+                               failure=failure)
         if proof is None:
+            gate = failure[0] if failure else "unknown_proof_gate"
+            proof_gates[gate] += 1
             diagnostics["incomplete_or_unverified_tv_groups"] = diagnostics.get(
                 "incomplete_or_unverified_tv_groups", 0) + 1
+            if len(diagnostics.setdefault("proof_gate_examples", [])) < 14:
+                diagnostics["proof_gate_examples"].append({
+                    "folder": group.get("folder"),
+                    "files": len(group.get("files") or []),
+                    "anidb_id": candidate["anidb_id"],
+                    "gate": gate})
+            if (prefetch_missing and refresh_requests is not None
+                    and gate in {"series_not_local", "episode_inventory_empty"}):
+                aid = int(candidate["anidb_id"])
+                pending_aids.add(aid)
+                now = time.monotonic()
+                if (aid not in refresh_requests
+                        or now - refresh_requests[aid] >= refresh_cooldown):
+                    api.refresh_series(aid)
+                    refresh_requests[aid] = now
+                    diagnostics["target_metadata_refreshes"] = (
+                        diagnostics.get("target_metadata_refreshes", 0) + 1)
             continue
         aid, count, rows = proof
         for row in rows:
             row["target_anidb_id"] = aid
             row["mode"] = "verified_tv_batch"
             row["verified_tv_episode_count"] = count
-            row["reason"] = "unique full romaji TV title and Shoko verified complete AniDB E01..EN inventory"
+            row["reason"] = "unique full TV title and Shoko verified complete AniDB E01..EN inventory"
             promoted += 1
         diagnostics["verified_tv_groups"] = diagnostics.get("verified_tv_groups", 0) + 1
+    diagnostics["proof_gate_reasons"] = dict(sorted(proof_gates.items()))
+    diagnostics["pending_tv_metadata_aids"] = sorted(pending_aids)
     return promoted
 
 
