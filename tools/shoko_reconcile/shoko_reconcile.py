@@ -327,6 +327,15 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
     series_cache={};episodes_cache={}
     audit=[]
     should_stop=False
+
+    def queue_series_refresh_if_due(aid):
+        now = time.monotonic()
+        last = (refresh_requests or {}).get(aid)
+        if last is None or now - last >= refresh_cooldown:
+            api.refresh_series(aid)
+            if refresh_requests is not None:
+                refresh_requests[aid] = now
+
     for group in plan["groups"]:
         for row in group["files"]:
             if limit is not None and done+failed+pending>=limit:
@@ -355,21 +364,22 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
                     if actual is None or int(actual)!=aid:
                         raise RuntimeError(f"Shoko series identity mismatch for AniDB {aid}")
                 else:
-                    # Refresh only missing *series metadata*, not the global
-                    # queue. A long-running Shoko worker must not enqueue the
-                    # same refresh every 60 seconds while AniDB is slow.
-                    now = time.monotonic()
-                    last = (refresh_requests or {}).get(aid)
-                    if last is None or now - last >= refresh_cooldown:
-                        api.refresh_series(aid)
-                        if refresh_requests is not None:
-                            refresh_requests[aid] = now
+                    # Metadata refresh is per AniDB work and cooldown-limited.
+                    # It does not depend on image downloads or full queue idle.
+                    queue_series_refresh_if_due(aid)
                 series_cache[aid]=sid
             sid=series_cache[aid]
             if not sid:
                 pending+=1;continue
             if sid not in episodes_cache:
                 episodes_cache[sid]=api.available_episodes(sid)
+            if not episodes_cache[sid]:
+                # A local series entry may exist before AniDB episode metadata
+                # becomes available. Only retry this missing work; never wait
+                # for Shoko to finish downloading unrelated artwork.
+                queue_series_refresh_if_due(aid)
+                pending+=1
+                continue
             kind=str(row.get("episode_type") or "Episode")
             actual_kind = "Episode" if kind=="Movie" else kind
             available=episodes_cache[sid]
