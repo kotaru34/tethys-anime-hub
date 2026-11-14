@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from auto_fallback import is_safe_automatic_link, auto_link_rejection_reason, keep_safe_rows, stable_unknowns, queue_is_busy, review_diagnostics
+from auto_fallback import is_safe_automatic_link, auto_link_rejection_reason, keep_safe_rows, stable_unknowns, review_diagnostics
 
 
 class AutoFallbackTests(unittest.TestCase):
@@ -157,24 +157,19 @@ class AutoFallbackTests(unittest.TestCase):
         row["episode"] = 1
         self.assertFalse(is_safe_automatic_link(self.group([]), row))
 
-    def test_shoko_jobs_must_finish_before_fallback(self):
-        class QueueAPI:
-            def __init__(self, status): self.status = status
-            def request(self, method, path):
-                self.last_call = (method, path)
-                return self.status
-        active = QueueAPI({"TotalCount": 1, "WaitingCount": 0,
-                           "BlockedCount": 0, "CurrentlyExecuting": [{"Type": "Hash"}]})
-        self.assertTrue(queue_is_busy(active))
-        self.assertEqual(active.last_call, ("GET", "/Queue"))
-        idle = QueueAPI({"TotalCount": 0, "WaitingCount": 0,
-                         "BlockedCount": 0, "CurrentlyExecuting": []})
-        self.assertFalse(queue_is_busy(idle))
-        blocked = QueueAPI({"TotalCount": 0, "WaitingCount": 0,
-                            "BlockedCount": 2, "CurrentlyExecuting": []})
-        self.assertTrue(queue_is_busy(blocked))
-        with self.assertRaises(RuntimeError):
-            queue_is_busy(QueueAPI(None))
+    def test_qbittorrent_partial_files_are_never_polled_or_eligible(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Episode.mkv.!qB").write_bytes(b"partial")
+            (root / "Episode2.mkv.qb!").write_bytes(b"partial")
+            unknown = [
+                {"ID": 1, "Locations": [{"RelativePath": "Episode.mkv.!qB"}]},
+                {"ID": 2, "Locations": [{"RelativePath": "Episode2.mkv.qb!"}]},
+            ]
+            current, eligible = stable_unknowns(
+                unknown, {}, now=10000000, media_root=root, minimum_age=60)
+            self.assertEqual(current, {})
+            self.assertEqual(eligible, set())
 
     def test_repeated_stable_file_is_eligible_only_after_age(self):
         with tempfile.TemporaryDirectory() as tmp:
