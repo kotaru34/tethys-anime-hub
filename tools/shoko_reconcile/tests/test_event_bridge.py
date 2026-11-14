@@ -5,7 +5,7 @@ import unittest
 import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from event_bridge import events_in, queue_idle, websocket_url, HANDSHAKE, resolve_apply_mode, retry_delay_for, Coordinator
+from event_bridge import events_in, websocket_url, HANDSHAKE, resolve_apply_mode, retry_delay_for, Coordinator
 
 
 class ProtocolTests(unittest.TestCase):
@@ -17,14 +17,9 @@ class ProtocolTests(unittest.TestCase):
             ("Shoko:FileNotMatched", [{"FileID": 778}])])
         self.assertEqual(list(events_in('{"type":1,"target":"Queue:QueueStateChanged","arguments":[{"TotalCount":0}]}\x1e')),
                          [("Queue:QueueStateChanged", [{"TotalCount": 0}])])
-    def test_queue_idle_and_busy(self):
-        self.assertTrue(queue_idle({"TotalCount": 0, "CurrentlyExecuting": [], "Running": True}))
-        self.assertFalse(queue_idle({"TotalCount": 1, "CurrentlyExecuting": [], "Running": True}))
-        self.assertFalse(queue_idle({"TotalCount": 0, "CurrentlyExecuting": [{"Type":"Hash"}], "Running": True}))
-        self.assertFalse(queue_idle({"TotalCount": 0, "CurrentlyExecuting": [], "Running": False}))
     def test_loopback_only(self):
         self.assertEqual(websocket_url("http://127.0.0.1:8111"),
-                         "ws://127.0.0.1:8111/signalr/aggregate?feeds=shoko,queue")
+                         "ws://127.0.0.1:8111/signalr/aggregate?feeds=shoko")
         with self.assertRaises(ValueError):
             websocket_url("http://10.169.2.151:8111")
 
