@@ -257,8 +257,11 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
     # No generic subtraction based on filename alone.
     try:
         from season_continuations import promote_verified_second_season
+        sequel_evidence = {}
         summary["verified_second_season_promoted"] = promote_verified_second_season(
-            api, plan, eligible, reference=sibling_reference)
+            api, plan, eligible, reference=sibling_reference,
+            diagnostics=sequel_evidence)
+        summary["second_season_evidence"] = sequel_evidence
     except Exception as exc:
         summary["sequel_evidence_error"] = f"{type(exc).__name__}: {exc}"
     # Any remaining sibling E13+ whose episode does not exist in its
