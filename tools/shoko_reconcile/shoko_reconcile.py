@@ -327,14 +327,17 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
     series_cache={};episodes_cache={}
     audit=[]
     should_stop=False
+    # Also deduplicate within a single manual apply() when the caller did not
+    # supply a persistent service-owned refresh throttle dictionary.
+    if refresh_requests is None:
+        refresh_requests = {}
 
     def queue_series_refresh_if_due(aid):
         now = time.monotonic()
-        last = (refresh_requests or {}).get(aid)
+        last = refresh_requests.get(aid)
         if last is None or now - last >= refresh_cooldown:
             api.refresh_series(aid)
-            if refresh_requests is not None:
-                refresh_requests[aid] = now
+            refresh_requests[aid] = now
 
     for group in plan["groups"]:
         for row in group["files"]:
