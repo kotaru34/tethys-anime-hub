@@ -31,6 +31,11 @@ def stable_unknowns(files, old_state, *, now, media_root, minimum_age=900):
             continue
         rel = str(locs[0].get("RelativePath") or "")
         pure = PurePosixPath(rel)
+        # qBittorrent uses a .!qB / .qb! suffix while a file is downloading.
+        # An incomplete torrent belongs exclusively to qBittorrent; do not
+        # inspect it, schedule link attempts, or retry it via file polling.
+        if rel.casefold().endswith((".!qb", ".qb!")):
+            continue
         if not rel or pure.is_absolute() or ".." in pure.parts:
             continue
         try:
@@ -164,7 +169,7 @@ def review_diagnostics(plan, eligible, *, max_groups=12):
 
 
 def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
-        minimum_age=900, now=None, do_apply=False):
+        minimum_age=900, now=None, do_apply=False, refresh_requests=None):
     now = time.time() if now is None else now
     root = Path(media_root)
     if not root.is_dir() or not os.path.ismount(root):
@@ -216,7 +221,9 @@ def run(api, *, state_path, plan_path, media_root="/Anime", catalog=None,
     if summary["approved_for_auto"]:
         _write_private_json(plan_path, safe_plan)
         if do_apply:
-            result = apply(api, safe_plan, journal=str(Path(plan_path).with_suffix(".journal.json")))
+            result = apply(api, safe_plan,
+                           journal=str(Path(plan_path).with_suffix(".journal.json")),
+                           refresh_requests=refresh_requests)
             summary.update({"submitted": result["submitted"], "errors": result["errors"],
                             "awaiting_series_refresh": result["awaiting_series_refresh"],
                             "deferred": result["deferred"]})
