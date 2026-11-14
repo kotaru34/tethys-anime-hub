@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Event-driven Shoko 5.3.3 Reconciler using the native SignalR aggregate hub.
 
-Subscribe only to Shoko:FileNotMatched, not image-related queue
-state events. qBittorrent partial suffixes determine download readiness;
+Subscribe to Shoko file detected/hashed/unmatched events, not image-related
+queue state events. A count-only watchdog catches missed file notifications. qBittorrent partial suffixes determine download readiness;
 per-target series/episode metadata checks never wait for image downloads.
 Use --apply only after confirming the dry-run behavior on your host.
 """
@@ -67,24 +67,35 @@ class Coordinator:
         # series to become available.
         self.refresh_requests = {}
         self.pending = threading.Event()
+        self.last_unknown_count = None
         self.worker = threading.Thread(target=self.process, name="shoko-fallback", daemon=True)
         self.worker.start()
 
     def received(self, target, arguments):
-        if target == "Shoko:FileNotMatched":
-            print("Shoko reports unmatched file; queue reconciliation", flush=True)
+        # Shoko 5.3.3 ShokoEventEmitter sends FileDetected and FileHashed
+        # independently of FileNotMatched. Some new files never produce a
+        # FileNotMatched event, especially across import/restart boundaries.
+        # Trigger one coalesced scan for the completed import, not one per file.
+        if target in ("Shoko:FileNotMatched", "Shoko:FileHashed",
+                      "Shoko:FileDetected"):
             self.pending.set()
-        # Queue:QueueStateChanged is deliberately NOT a trigger: poster/
-        # character-image jobs can toggle queue busy/idle hundreds of times,
-        # causing repeated expensive full-library candidate searches. Shoko
-        # unmatched-file events, startup/reconnect, and targeted metadata
-        # retries are sufficient for this service.
+        # Deliberately ignore Queue:QueueStateChanged: most traffic is artwork.
+
+    def unknown_count(self):
+        """One Shoko API page, not a filesystem/library scan."""
+        data = self.api.request("GET", "/File", {
+            "include_only": "Unrecognized", "pageSize": 1, "page": 1
+        })
+        if not isinstance(data, dict) or not isinstance(data.get("Total"), int):
+            raise RuntimeError("Shoko /File unrecognized total missing")
+        return data["Total"]
 
     def reconcile(self, do_apply):
         result = reconcile(
             self.api, state_path=self.state_path, plan_path=self.plan_path,
             catalog=self.catalog, do_apply=do_apply,
             refresh_requests=self.refresh_requests)
+        self.last_unknown_count = result.get("currently_unrecognized")
         print(json.dumps(result, sort_keys=True), flush=True)
         return result
 
@@ -110,7 +121,9 @@ class Coordinator:
         retry_delay = None
         retry_kind = None
         while True:
-            signaled = self.pending.wait(timeout=retry_delay)
+            # A single cheap Shoko /File count probe every 60 seconds
+            # recovers missed SignalR events; it is NOT media-file polling.
+            signaled = self.pending.wait(timeout=retry_delay if retry_delay is not None else 60)
             self.pending.clear()
             try:
                 if not signaled and retry_kind == "metadata":
@@ -119,11 +132,22 @@ class Coordinator:
                     if retry_delay is not None:
                         retry_kind = "metadata"
                     else:
-                        # Once metadata are available, refresh the full report.
                         self.pending.set()
                         retry_kind = None
                     continue
-
+                if not signaled and retry_kind != "error":
+                    unknown = self.unknown_count()
+                    previous = self.last_unknown_count
+                    self.last_unknown_count = unknown
+                    if previous is not None and unknown <= previous:
+                        continue
+                    print(f"Shoko unknown count increased: {previous} -> {unknown}; "
+                          "reconciling missed import event", flush=True)
+                if signaled:
+                    # Coalesce a batch of file-detected/hashed signals. They
+                    # come in bursts during the same completed-torrent scan.
+                    time.sleep(5)
+                    self.pending.clear()
                 result = self.reconcile(self.do_apply)
                 retry_delay = retry_delay_for(result)
                 retry_kind = "metadata" if retry_delay is not None else None
@@ -131,7 +155,6 @@ class Coordinator:
                     print(f"Metadata recheck in up to {retry_delay}s "
                           "(no global queue wait)", flush=True)
             except Exception as exc:
-                # Shoko might be restarting (HTTP 503). No file-age polling.
                 retry_delay = 30
                 retry_kind = "error"
                 print(f"Reconciliation event failed: {type(exc).__name__}: {exc}; "
