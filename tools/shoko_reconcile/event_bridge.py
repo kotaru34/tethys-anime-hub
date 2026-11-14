@@ -54,17 +54,15 @@ def websocket_url(shoko_url):
     return f"ws://{host}/signalr/aggregate?feeds=shoko,queue"
 
 
-def retry_delay_for(result, *, minimum_age, metadata_retry_seconds=60):
-    """Schedule only useful work, independently of Shoko image jobs.
+def retry_delay_for(result, *, metadata_retry_seconds=60):
+    """Only series metadata/API errors warrant background retries.
 
-    If metadata are missing, retry *that* unfinished linking workflow on a
-    bounded interval. If files have not met the stable-file age threshold,
-    retry after that threshold. No global queue-idle requirement.
+    Incomplete .qb! files never enter the workset, and delayed/stabilizing
+    media are not repeatedly polled by the service. A single deferred
+    eligibility check may be scheduled per incoming unmatched-file event.
     """
     if result.get("awaiting_series_refresh", 0) or result.get("errors", 0):
         return metadata_retry_seconds
-    if result.get("currently_unrecognized", 0) > result.get("mature_stable_unknown", 0):
-        return minimum_age + 2
     return None
 
 
@@ -83,7 +81,6 @@ class Coordinator:
         # series to become available.
         self.refresh_requests = {}
         self.pending = threading.Event()
-        self.idle = threading.Event()
         self.worker = threading.Thread(target=self.process, name="shoko-fallback", daemon=True)
         self.worker.start()
 
@@ -91,17 +88,11 @@ class Coordinator:
         if target == "Shoko:FileNotMatched":
             print("Shoko reports unmatched file; queue reconciliation", flush=True)
             self.pending.set()
-        if target in ("Queue:OnConnected", "Queue:QueueStateChanged") and arguments:
-            if queue_idle(arguments[0]):
-                was_idle = self.idle.is_set()
-                self.idle.set()
-                # Hash-only recognition may leave files unknown without a
-                # FileNotMatched notification. The busy->idle transition is
-                # therefore another *event-driven* reconciliation trigger.
-                if not was_idle:
-                    self.pending.set()
-            else:
-                self.idle.clear()
+        # Queue:QueueStateChanged is deliberately NOT a trigger: poster/
+        # character-image jobs can toggle queue busy/idle hundreds of times,
+        # causing repeated expensive full-library candidate searches. Shoko
+        # unmatched-file events, startup/reconnect, and targeted metadata
+        # retries are sufficient for this service.
 
     def reconcile(self, do_apply):
         result = reconcile(
@@ -111,25 +102,71 @@ class Coordinator:
         print(json.dumps(result, sort_keys=True), flush=True)
         return result
 
+    def retry_pending_metadata(self):
+        """Reapply only last safe plan; avoid repeating expensive title search.
+
+        apply() rechecks the current unrecognized-file list and per-file
+        paths/episode metadata, so stale rows are safely deferred.
+        """
+        from shoko_reconcile import apply
+        if not self.do_apply or not Path(self.plan_path).is_file():
+            return {"submitted": 0, "errors": 0, "awaiting_series_refresh": 0,
+                    "deferred": 0}
+        plan = json.loads(Path(self.plan_path).read_text(encoding="utf8"))
+        result = apply(self.api, plan,
+                       journal=str(Path(self.plan_path).with_suffix(".journal.json")),
+                       refresh_requests=self.refresh_requests)
+        print(json.dumps({**{k: v for k, v in result.items() if k != "audit"},
+                          "metadata_retry": True}, sort_keys=True), flush=True)
+        return result
+
     def process(self):
         retry_delay = None
+        retry_kind = None
+        maturity_recheck_used = False
         while True:
-            # Run immediately on an event or service startup. Timed retries
-            # occur ONLY for pending series metadata, still-maturing files,
-            # and transient API/link errors. Image download jobs never gate
-            # the worker. Event.set() during a run remains pending.
-            self.pending.wait(timeout=retry_delay)
+            signaled = self.pending.wait(timeout=retry_delay)
             self.pending.clear()
+            if signaled:
+                # A new completed-file event may warrant exactly one
+                # post-grace eligibility check, never periodic download
+                # polling or busy-to-idle image-queue triggers.
+                maturity_recheck_used = False
+                retry_kind = None
             try:
+                if not signaled and retry_kind == "metadata":
+                    result = self.retry_pending_metadata()
+                    retry_delay = retry_delay_for(result)
+                    if retry_delay is not None:
+                        retry_kind = "metadata"
+                    else:
+                        # The series metadata are now available. Run one new
+                        # reconciliation for a complete updated status; this
+                        # is NOT triggered by the global Shoko image queue.
+                        self.pending.set()
+                        retry_kind = None
+                    continue
+
                 result = self.reconcile(self.do_apply)
-                retry_delay = retry_delay_for(result, minimum_age=self.minimum_age)
+                retry_delay = retry_delay_for(result)
                 if retry_delay is not None:
-                    print(f"Pending file/series work; retry in up to {retry_delay}s "
-                          "(no global queue wait)", flush=True)
+                    retry_kind = "metadata"
+                elif (not maturity_recheck_used
+                      and result.get("currently_unrecognized", 0)
+                      > result.get("mature_stable_unknown", 0)):
+                    retry_delay = self.minimum_age + 2
+                    retry_kind = "maturity_once"
+                    maturity_recheck_used = True
+                else:
+                    retry_delay = None
+                    retry_kind = None
+                if retry_delay is not None:
+                    print(f"Remaining eligible work recheck in up to {retry_delay}s "
+                          f"({retry_kind}; no Shoko global queue wait)", flush=True)
             except Exception as exc:
-                # Shoko may be restarting (HTTP 503). Retry on a bounded timer
-                # even if no new SignalR event arrives after it comes back.
+                # Shoko may be restarting (HTTP 503); bounded API retry.
                 retry_delay = 30
+                retry_kind = "error"
                 print(f"Reconciliation event failed: {type(exc).__name__}: {exc}; "
                       f"retry in up to {retry_delay}s", flush=True)
 
@@ -185,7 +222,6 @@ def main(argv=None):
                 coordinator.pending.set()
                 # No /Queue read is necessary for linking. A new connection
                 # must survive a Shoko startup period with API 503 responses.
-                coordinator.idle.clear()
                 while True:
                     msg = ws.recv()
                     if not msg:
