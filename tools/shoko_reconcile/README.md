@@ -156,7 +156,7 @@ If Shoko queues metadata fetching, let its jobs settle and rerun. Verify the sam
 - Search and rank season-specific candidate titles from per-file tags and alias-catalog metadata. Date chronology operates on **distinct AniDB IDs**, not duplicate Shoko/alias results for the same anime. Numbered `... 2` and `Part 2` suffixes are contextual and require a sufficiently matching complete title stem; no named-anime special cases were introduced.
 - When a single release directory contains **both** `S01E..` and `S02E..`, independently resolve the season batches; untagged files must not be silently inherited into one of them.
 - The season safety check is performed in **fresh plans**, **offline refinement of legacy plans**, **direct manual-link apply**, and **unattended fallback**. Explicit file/release-approved mappings remain possible when source numbering is known to be exceptional.
-- On Shoko queue **busy → idle** events, the SignalR bridge schedules fallback reconciliation even if Shoko does not emit `Shoko:FileNotMatched`. Startup/reconnect also triggers a check. After its event-triggered grace period, the worker checks the **live** Shoko `/Queue` state before awaiting SignalR; if busy it rechecks at most every 30 seconds so a missed idle notification cannot stall it indefinitely. This is **not** a fixed periodic library scanner.
+- The SignalR bridge reacts to Shoko `Shoko:FileNotMatched` and startup/reconnect, **not** to global queue busy → idle transitions. Image/character/author artwork jobs must not block or repeatedly retrigger matching. Automatic linking can proceed while unrelated Shoko jobs remain queued.
 - Synthetic regression tests cover sequel vs original, aliases/candidate chronology collisions, same-directory mixed seasons, old-plan first-season corruption, OVA/cour and publisher-verified specials, and queue transitions. CI tests Python 3.11/3.12/3.13. Private `shoko-plan*.json` inventories must **never** be committed.
 
 To validate on the Shoko host **without changing any file, database, or link**:
@@ -241,6 +241,40 @@ Known gaps remain genuine extras, unidentified OVAs, unnumbered entries with
 no independent episode evidence, and any newly imported titles for which no
 source-backed crosswalk exists. Lowering counts is not a justification to
 fabricate AniDB File records or force an episode assignment.
+
+## Queue-independent linking and qBittorrent partial-file handling
+
+`Shoko /Queue` includes background image fetching, not just anime metadata.
+Previously the event bridge waited for **every** queued image to finish,
+and each unrelated busy→idle transition could launch another expensive
+full-library matching pass. That is now deliberately removed.
+
+- Shoko's native `Shoko:FileNotMatched` event or service startup/reconnect
+  triggers reconciliation, **without reading `/Queue`**.
+- Existing `stable_unknowns` checks still require a safe, readable,
+  age-stable **final** media file. Files whose names end in `.!qB` or
+  `.qb!` are explicitly excluded. There is no monitoring or polling of
+  in-progress torrents: qBittorrent is responsible for downloads.
+- After an unmatched-file event, finalized files not yet past the stability
+  guard may receive **one** delayed follow-up, not a perpetual download
+  polling timer.
+- The actual `apply()` operation independently rechecks the file's Shoko
+  unrecognized status and path, AniDB work identity, and verified destination
+  episode before submitting a manual link. Thus unrelated image jobs are not
+  a safety dependency.
+- Only **missing series/episode metadata** are retried on a bounded timer,
+  using the already prepared safe plan rather than repeating title searches.
+  Each missing AniDB ID can request a refresh at most once per 15 minutes
+  during this service process; the light metadata readiness check is retried
+  after 60 seconds.
+- Shoko 503 responses during server startup do not kill the event bridge:
+  both the API worker and WebSocket reconnect independently.
+- The Shoko scheduler can still delay *actual AniDB metadata jobs* behind
+  unrelated work; this fix removes the reconciler's artificial global wait
+  but does not change Shoko's internal scheduling priorities.
+
+No changes are made to media files, torrent names, file locations, or the
+qBittorrent download workflow.
 
 ## Unique full-title AniDB work identity (no global fuzzy threshold lowering)
 
