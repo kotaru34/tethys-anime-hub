@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from auto_fallback import is_safe_automatic_link, keep_safe_rows, stable_unknowns, queue_is_busy, review_diagnostics
+from auto_fallback import is_safe_automatic_link, auto_link_rejection_reason, keep_safe_rows, stable_unknowns, queue_is_busy, review_diagnostics
 
 
 class AutoFallbackTests(unittest.TestCase):
@@ -76,6 +76,50 @@ class AutoFallbackTests(unittest.TestCase):
         self.assertEqual(report["review_by_reason"], {"ambiguous new release": 2})
         self.assertEqual(report["review_groups_total"], 1)
         self.assertEqual(report["review_top_groups"][0]["files"], 2)
+
+    def test_specific_safety_gate_reasons_for_ranked_candidates(self):
+        row = self.row()
+        group = self.group([row])
+        self.assertIsNone(auto_link_rejection_reason(group, row))
+
+        group["candidates"][0]["score"] = 0.97
+        self.assertEqual(
+            auto_link_rejection_reason(group, row),
+            "selected_candidate_score_below_0.98",
+        )
+        group["candidates"][0]["score"] = 1.0
+        group["candidates"][1]["score"] = 0.85
+        self.assertEqual(
+            auto_link_rejection_reason(group, row),
+            "competing_candidate_within_0.18",
+        )
+        group["candidates"][1]["score"] = 0.75
+        shifted = {**row, "source_episode": 14}
+        self.assertEqual(
+            auto_link_rejection_reason(group, shifted),
+            "episode_number_shift_requires_review",
+        )
+        unnumbered = {**row, "episode": None}
+        self.assertEqual(
+            auto_link_rejection_reason(group, unnumbered),
+            "missing_work_or_episode_identity",
+        )
+
+    def test_review_diagnostics_explain_real_gate_not_title_reason(self):
+        row = self.row()
+        group = self.group([row], [
+            {"anidb_id": 17968, "score": 0.99},
+            {"anidb_id": 14247, "score": 0.94},
+        ])
+        row["reason"] = "title + context matched"
+        plan = {"version": 2, "groups": [group]}
+        result = review_diagnostics(plan, {1})
+        self.assertEqual(result["review_by_mode"], {"auto_evidence": 1})
+        self.assertEqual(result["review_by_gate"],
+                         {"competing_candidate_within_0.18": 1})
+        self.assertEqual(result["review_by_reason"],
+                         {"title + context matched": 1})
+        self.assertFalse(is_safe_automatic_link(group, row))
 
     def test_unverified_other_category_cannot_be_automatically_linked(self):
         row = self.row(100, 18603, 1, mode="public_crosswalk", kind="Other")

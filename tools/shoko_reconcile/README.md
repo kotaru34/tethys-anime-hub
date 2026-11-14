@@ -253,7 +253,19 @@ Every idle plan run now writes a private inspection snapshot to
 `/var/lib/shoko-reconcile/realtime-plan.review.json` (or the service's
 configured plan base name), including even 100%-rejected plans. The journal
 prints `unknown_percent`, `additional_links_for_5pct`,
-`review_by_mode`, `review_by_reason`, and up to 12 `review_top_groups`.
+`review_by_mode`, **`review_by_gate`**, `review_by_reason`, and up to 12\n`review_top_groups`. `review_by_gate` reports the *actual automatic safety\ncheck* that failed; `review_by_reason` retains the earlier title-selection\nexplanation and can be misleading on its own.
+Use the new offline inspector to see each group's exact rejection
+(`candidate_season_unsupported`, `selected_candidate_score_below_0.98`,
+`competing_candidate_within_0.18`, `missing_work_or_episode_identity`,
+etc.), the top Shoko/AniDB titles and IDs, their relative scores, and two
+representative file/episode paths. This uses **no Shoko API key** and makes
+**no changes**:
+
+```bash
+cd /opt/tethys-anime-hub/tools/shoko_reconcile
+python3 -B inspect_review.py --max-groups 20 --max-candidates 4
+```
+
 Review the JSON *locally on CT2601*, **never commit it**:
 
 ```bash
