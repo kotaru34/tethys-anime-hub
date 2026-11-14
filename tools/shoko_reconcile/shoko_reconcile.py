@@ -318,7 +318,8 @@ def _series_id_from_api(value):
     return int(result) if result else None
 
 
-def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None):
+def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
+          refresh_requests=None, refresh_cooldown=900):
     if plan.get("version")!=2:raise ValueError("Only version-2 plans may be applied")
     if limit is not None and limit<1:raise ValueError("Limit must be positive")
     current={int(f["ID"]):f for f in api.unrecognized()}
@@ -354,7 +355,15 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None):
                     if actual is None or int(actual)!=aid:
                         raise RuntimeError(f"Shoko series identity mismatch for AniDB {aid}")
                 else:
-                    api.refresh_series(aid)
+                    # Refresh only missing *series metadata*, not the global
+                    # queue. A long-running Shoko worker must not enqueue the
+                    # same refresh every 60 seconds while AniDB is slow.
+                    now = time.monotonic()
+                    last = (refresh_requests or {}).get(aid)
+                    if last is None or now - last >= refresh_cooldown:
+                        api.refresh_series(aid)
+                        if refresh_requests is not None:
+                            refresh_requests[aid] = now
                 series_cache[aid]=sid
             sid=series_cache[aid]
             if not sid:
