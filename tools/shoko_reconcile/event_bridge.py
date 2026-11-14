@@ -152,8 +152,7 @@ class Coordinator:
                 if retry_delay is not None:
                     retry_kind = "metadata"
                 elif (not maturity_recheck_used
-                      and result.get("currently_unrecognized", 0)
-                      > result.get("mature_stable_unknown", 0)):
+                      and result.get("maturing_nonpartial_files", 0) > 0):
                     retry_delay = self.minimum_age + 2
                     retry_kind = "maturity_once"
                     maturity_recheck_used = True
