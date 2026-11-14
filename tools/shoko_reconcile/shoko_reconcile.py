@@ -319,7 +319,7 @@ def _series_id_from_api(value):
 
 
 def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
-          refresh_requests=None, refresh_cooldown=900):
+          refresh_requests=None, refresh_cooldown=900, sibling_reference=None):
     """Apply a fresh safe plan, recording *why* each row was not submitted.
 
     A Shoko sibling-consensus link uses a different, stronger independent
@@ -334,7 +334,6 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
     done = failed = deferred = pending = 0
     series_cache = {}
     episodes_cache = {}
-    sibling_reference = None
     deferred_by_reason = Counter()
     deferred_examples = defaultdict(list)
     audit = []
