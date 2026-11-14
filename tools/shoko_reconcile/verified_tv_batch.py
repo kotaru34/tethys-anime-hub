@@ -179,8 +179,10 @@ def _batch_rows(group, eligible=None, *, failure=None):
         if eligible is not None and int(row.get("file_id") or 0) not in eligible:
             return reject("ineligible_main_episode")
         rows.append((info.number, row))
-    if len(rows) < 6:
-        return reject("insufficient_numbered_main_episodes")
+    # One fresh E01 is enough when the *same* exact-work and live AniDB
+    # checks used by the full-batch mode succeed. This adds no separate pass.
+    if not rows:
+        return reject("no_numbered_main_episodes")
     numbers = [number for number, _ in rows]
     if len(numbers) != len(set(numbers)):
         return reject("duplicate_main_episode_number")
@@ -200,7 +202,8 @@ def _episodes(api, aid, cache):
     return cache[aid]
 
 
-def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None):
+def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None,
+                   sibling_reference=None):
     """Prove unique exact work and full AniDB E01..EN, reporting the blocker."""
     cache = {} if cache is None else cache
 
@@ -217,9 +220,33 @@ def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None):
     if not rows:
         return reject(row_failure[0] if row_failure else "file_episode_parsing_or_layout")
     numbers = {number for number, _ in rows}
-    if numbers != set(range(1, len(numbers) + 1)):
+    first = min(numbers)
+    if numbers != set(range(first, first + len(numbers))):
         return reject("non_contiguous_local_episode_numbers")
     aid = int(candidate["anidb_id"])
+
+    # New RSS releases usually start with only E01. E02+ may arrive in
+    # isolation after Shoko has already linked E01. In that case, require
+    # the adjacent earlier episode to be a real, *single-work* file-level
+    # XRef in this exact directory. We reuse the index already built by
+    # the reconciler; do not run another full-library search per episode.
+    if first > 1:
+        if sibling_reference is None:
+            # The event-driven pass already builds this index once. Do not
+            # repeat a potentially large /File XRef scan during metadata
+            # retries or stand-alone write-boundary revalidation.
+            return reject("cached_adjacent_tv_anchor_unavailable")
+        entry = (sibling_reference or {}).get(str(group.get("folder") or ""))
+        if not entry or entry.get("work_ids") != {aid}:
+            return reject("adjacent_linked_tv_anchor_missing_or_mixed")
+        file_season = classify_episode(rows[0][1]["path"],
+                                       group=group.get("folder") or "").season
+        anchors = [a for a in entry.get("anchors") or []
+                   if a[1] == aid and a[2] == first - 1
+                   and a[3] == file_season]
+        if len({a[0] for a in anchors}) != 1:
+            return reject("adjacent_linked_tv_anchor_missing_or_mixed")
+
     if any(not target_season_supported(
             group, {**row, "target_anidb_id": aid, "mode": "strong_context"})
             for _, row in rows):
@@ -242,7 +269,7 @@ def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None):
 
 def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None,
                               refresh_requests=None, prefetch_missing=False,
-                              refresh_cooldown=900):
+                              refresh_cooldown=900, sibling_reference=None):
     """Prove TV batches; optionally request only missing target-series metadata.
 
     A matching title and a contiguous set of local episode numbers can
@@ -258,6 +285,7 @@ def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None,
     title_gates = Counter()
     proof_gates = Counter()
     pending_aids = set()
+    early_promoted = 0
     groups = plan.get("groups") or []
     eligible = {int(item) for item in eligible}
     for group in sorted(groups, key=lambda g: -len(g.get("files") or [])):
@@ -290,7 +318,7 @@ def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None,
         diagnostics["exact_spaced_tv_groups"] = diagnostics.get("exact_spaced_tv_groups", 0) + 1
         failure = []
         proof = tv_batch_proof(api, group, eligible=eligible, cache=cache,
-                               failure=failure)
+                               failure=failure, sibling_reference=sibling_reference)
         if proof is None:
             gate = failure[0] if failure else "unknown_proof_gate"
             proof_gates[gate] += 1
@@ -321,20 +349,24 @@ def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None,
             row["verified_tv_episode_count"] = count
             row["reason"] = "unique full TV title, contiguous E01..EK release and verified AniDB E01..EN inventory"
             promoted += 1
+            if len(rows) < 6:
+                early_promoted += 1
         diagnostics["verified_tv_groups"] = diagnostics.get("verified_tv_groups", 0) + 1
     diagnostics["proof_gate_reasons"] = dict(sorted(proof_gates.items()))
+    diagnostics["early_tv_episodes_promoted"] = early_promoted
     diagnostics["pending_tv_metadata_aids"] = sorted(pending_aids)
     return promoted
 
 
-def verify_tv_batch_row(api, group, row, *, cache=None):
+def verify_tv_batch_row(api, group, row, *, cache=None, sibling_reference=None):
     if row.get("mode") != "verified_tv_batch":
         return False
     aid = row.get("target_anidb_id")
     n = row.get("verified_tv_episode_count")
     if not isinstance(aid, int) or not isinstance(n, int):
         return False
-    proof = tv_batch_proof(api, group, cache=cache)
+    proof = tv_batch_proof(api, group, cache=cache,
+                           sibling_reference=sibling_reference)
     if not proof or proof[0] != aid or proof[1] != n:
         return False
     return any(r.get("file_id") == row.get("file_id") for r in proof[2])

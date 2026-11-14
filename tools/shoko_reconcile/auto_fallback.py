@@ -326,7 +326,8 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
         tv_evidence = {}
         summary["verified_tv_batch_promoted"] = promote_verified_tv_batch(
             api, plan, eligible, diagnostics=tv_evidence,
-            refresh_requests=refresh_requests, prefetch_missing=do_apply)
+            refresh_requests=refresh_requests, prefetch_missing=do_apply,
+            sibling_reference=sibling_reference)
         summary["verified_tv_batch_evidence"] = tv_evidence
         # Only an exact, season-safe target with a full parseable local block
         # may request a metadata refresh; it still cannot link before proof.

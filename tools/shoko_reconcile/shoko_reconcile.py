@@ -420,7 +420,8 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
                 group_key = id(group)
                 if group_key not in tv_batch_group_proofs:
                     tv_batch_group_proofs[group_key] = tv_batch_proof(
-                        api, group, cache=tv_episode_cache)
+                        api, group, cache=tv_episode_cache,
+                        sibling_reference=sibling_reference)
                 verified = tv_batch_group_proofs[group_key]
                 if (verified is None or int(aid) != verified[0]
                         or row.get("verified_tv_episode_count") != verified[1]
