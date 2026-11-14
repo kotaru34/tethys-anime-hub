@@ -183,9 +183,8 @@ class SeasonEvidenceTests(unittest.TestCase):
         self.assertIsNone(row["target_anidb_id"])
         self.assertEqual(row["mode"], "episode_review")
 
-    def test_queue_idle_transition_schedules_reconciliation_without_file_event(self):
+    def test_queue_idle_image_transitions_do_not_trigger_full_matching(self):
         c = object.__new__(Coordinator)
-        c.idle = Event()
         c.pending = Event()
         c.received("Queue:QueueStateChanged", [
             {"TotalCount": 3, "CurrentlyExecuting": [], "Running": True}
@@ -194,12 +193,9 @@ class SeasonEvidenceTests(unittest.TestCase):
         c.received("Queue:QueueStateChanged", [
             {"TotalCount": 0, "CurrentlyExecuting": [], "Running": True}
         ])
-        self.assertTrue(c.pending.is_set())
-        c.pending.clear()
-        c.received("Queue:QueueStateChanged", [
-            {"TotalCount": 0, "CurrentlyExecuting": [], "Running": True}
-        ])
         self.assertFalse(c.pending.is_set())
+        c.received("Shoko:FileNotMatched", [{"FileID": 77}])
+        self.assertTrue(c.pending.is_set())
 
 
 if __name__ == "__main__":
