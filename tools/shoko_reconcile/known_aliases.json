@@ -193,7 +193,8 @@
       "Maou Gakuin no Futekigousha S2",
       "Maou Gakuin no Futekigousha Season 2"
     ],
-    "source": "Shoko 5.3.3 live AniDB candidate: second-season Part 1 (E01-E12)"
+    "source": "Shoko 5.3.3 live AniDB candidate: second-season Part 1 (E01-E12)",
+    "season": 2
   },
   {
     "title": "Maou Gakuin no Futekigousha II Part 2",
@@ -204,7 +205,8 @@
       "Maou Gakuin no Futekigousha S2 Part 2",
       "Maou Gakuin no Futekigousha S2 Part2"
     ],
-    "source": "Shoko 5.3.3 live AniDB candidate: second-season Part 2 (local E01-E12)"
+    "source": "Shoko 5.3.3 live AniDB candidate: second-season Part 2 (local E01-E12)",
+    "season": 2
   },
   {
     "title": "Mahoutsukai Reimeiki",
@@ -227,7 +229,8 @@
       "Mashle - Magic And Muscles Season 2",
       "Mashle: Magic and Muscles Season 2"
     ],
-    "source": "Shoko 5.3.3 live AniDB candidate: distinct Season 2 work"
+    "source": "Shoko 5.3.3 live AniDB candidate: distinct Season 2 work",
+    "season": 2
   },
   {
     "title": "Mato Seihei no Slave",
