@@ -64,6 +64,9 @@ def clean_release_title(folder: str) -> str:
     s = re.sub(r"(?i)\s+(?:1080p|720p|2160p|hevc|x265|x264|flac|hdr)\b(?:[\s_.-]+(?:1080p|720p|2160p|hevc|x265|x264|flac|hdr))*\s*$", "", s)
     s = RE_LEAD_QUALITY.sub("", s)
     s = re.sub(r"(?i)\s+(?:anilibria(?:\.tv)?|aniliberty|amanogawa|fanvoxua)\s*$", "", s)
+    # A trailing revision label is a release version, not the anime title.
+    # Example: "[Judas] ATRI ... [Multi-Subs]v2".
+    s = re.sub(r"(?i)(?:^|[\\s._-]+)v[1-9]\\d?\\s*$", "", s)
     s = re.sub(r"\s+", " ", s).strip(" ._-")
     return s
 
@@ -172,6 +175,9 @@ def classify_episode(relative_path: str, *, group: str = "") -> EpisodeInfo:
     path=relative_path.replace("\\", "/")
     parts=PurePosixPath(path).parts
     stem=PurePosixPath(path).stem
+    # Fansub revision suffixes such as " - 10v3 [1080p]" must not swallow
+    # episode 10, while the v3 is never an additional episode.
+    stem=re.sub(r"(?i)(?<=\\d)v[1-9]\\d?(?=$|[\\s._\\[(])", "", stem)
     parents="/".join(parts[1:-1]) if len(parts)>=2 else ""
     # Extras must be identified before ep number extraction. Preview/Ep 01 is not episode 1.
     if RE_EXTRA.search(parents) or RE_EXTRA_LABEL.search(stem):
