@@ -63,7 +63,7 @@ def special_identity_rejection_reason(group, row):
     info = classify_episode(path, group=group.get("folder") or "")
     stem = PurePosixPath(path).stem
     explicit_ova = re.search(
-        r"(?i)(?:^|[\\s._(\\[\\-])(?:ova|oad|ona)(?:$|[\\s._)\\]\\-])", stem)
+        r"(?i)(?:^|[\s._(\[\-])(?:ova|oad|ona)(?:$|[\s._)\]\-])", stem)
     if info.category != "Special":
         if explicit_ova:
             return "ova_filename_not_classified_as_special"
