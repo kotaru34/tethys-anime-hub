@@ -92,13 +92,14 @@ def sibling_work_evidence(index, group, row):
     return aid, distinct_episode_count
 
 
-def promote_linked_siblings(api, plan, eligible):
+def promote_linked_siblings(api, plan, eligible, *, reference=None):
     """Upgrade only fresh, stable unknown E-numbered files with strong anchors.
 
     Return count promoted to sibling_consensus. Real episode existence and
     file path remain independently checked in shoko_reconcile.apply().
     """
-    reference = sibling_index(api)
+    if reference is None:
+        reference = sibling_index(api)
     promoted = 0
     for group in plan.get("groups", []):
         for row in group.get("files", []):
