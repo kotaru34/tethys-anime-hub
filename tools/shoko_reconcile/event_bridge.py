@@ -48,7 +48,9 @@ def retry_delay_for(result, *, metadata_retry_seconds=60):
     Incomplete .qb! files never enter the workset. There is no filesystem
     age gate, download polling, or maturity recheck timer.
     """
-    if result.get("awaiting_series_refresh", 0) or result.get("errors", 0):
+    if (result.get("awaiting_series_refresh", 0)
+            or result.get("awaiting_tv_metadata", 0)
+            or result.get("errors", 0)):
         return metadata_retry_seconds
     return None
 
@@ -66,6 +68,8 @@ class Coordinator:
         # duplicate refresh/image jobs while waiting for the *specific* AniDB
         # series to become available.
         self.refresh_requests = {}
+        self.tv_pending_aids = set()
+        self.tv_watch_polls = 0
         self.pending = threading.Event()
         self.last_unknown_count = None
         self.worker = threading.Thread(target=self.process, name="shoko-fallback", daemon=True)
@@ -96,6 +100,8 @@ class Coordinator:
             catalog=self.catalog, do_apply=do_apply,
             refresh_requests=self.refresh_requests)
         self.last_unknown_count = result.get("currently_unrecognized")
+        self.tv_pending_aids = set(result.get("pending_tv_metadata_aids") or [])
+        self.tv_watch_polls = 0
         print(json.dumps(result, sort_keys=True), flush=True)
         return result
 
@@ -117,6 +123,32 @@ class Coordinator:
                           "metadata_retry": True}, sort_keys=True), flush=True)
         return result
 
+    def poll_target_tv_metadata(self):
+        """Cheap AniDB-only probe; schedule a full scan only once metadata exists.
+
+        Shoko's global artwork queue may continue indefinitely. Only the
+        specific AniDB series IDs identified by fail-closed full-title proof
+        are probed, and only until metadata becomes available or 15 probes
+        have passed (after which a new import event can resume discovery).
+        """
+        if not self.tv_pending_aids:
+            return False
+        self.tv_watch_polls += 1
+        for aid in sorted(self.tv_pending_aids):
+            series = self.api.local_series(aid)
+            ids = (series or {}).get("IDs") or {}
+            if int(ids.get("AniDB") or -1) != int(aid) or not ids.get("ID"):
+                continue
+            if self.api.available_episodes(int(ids["ID"])):
+                print(f"Target AniDB metadata ready: {aid}; rechecking complete TV proof",
+                      flush=True)
+                return True
+        if self.tv_watch_polls >= 15:
+            print("Target AniDB metadata did not arrive after 15 lightweight "
+                  "checks; pausing until new Shoko import event", flush=True)
+            self.tv_pending_aids.clear()
+        return False
+
     def process(self):
         retry_delay = None
         retry_kind = None
@@ -126,6 +158,19 @@ class Coordinator:
             signaled = self.pending.wait(timeout=retry_delay if retry_delay is not None else 60)
             self.pending.clear()
             try:
+                if not signaled and retry_kind == "tv_metadata":
+                    if self.poll_target_tv_metadata():
+                        # Re-run discovery: a complete-work proof wasn't yet
+                        # in the old safe plan, so apply(old_plan) cannot link.
+                        self.pending.set()
+                        retry_delay = None
+                        retry_kind = None
+                    elif not self.tv_pending_aids:
+                        retry_delay = None
+                        retry_kind = None
+                    else:
+                        retry_delay = 60
+                    continue
                 if not signaled and retry_kind == "metadata":
                     result = self.retry_pending_metadata()
                     retry_delay = retry_delay_for(result)
@@ -150,7 +195,11 @@ class Coordinator:
                     self.pending.clear()
                 result = self.reconcile(self.do_apply)
                 retry_delay = retry_delay_for(result)
-                retry_kind = "metadata" if retry_delay is not None else None
+                retry_kind = (
+                    "metadata" if result.get("awaiting_series_refresh", 0)
+                    or result.get("errors", 0)
+                    else "tv_metadata" if result.get("awaiting_tv_metadata", 0)
+                    else None)
                 if retry_delay is not None:
                     print(f"Metadata recheck in up to {retry_delay}s "
                           "(no global queue wait)", flush=True)
