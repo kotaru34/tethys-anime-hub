@@ -232,8 +232,10 @@ def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None,
     # the reconciler; do not run another full-library search per episode.
     if first > 1:
         if sibling_reference is None:
-            from local_siblings import sibling_index
-            sibling_reference = sibling_index(api)
+            # The event-driven pass already builds this index once. Do not
+            # repeat a potentially large /File XRef scan during metadata
+            # retries or stand-alone write-boundary revalidation.
+            return reject("cached_adjacent_tv_anchor_unavailable")
         entry = (sibling_reference or {}).get(str(group.get("folder") or ""))
         if not entry or entry.get("work_ids") != {aid}:
             return reject("adjacent_linked_tv_anchor_missing_or_mixed")
