@@ -110,7 +110,7 @@ class ExactIdentityTests(unittest.TestCase):
         b = group("Example S2 Part 2", [
             candidate(2, "Example S2 Part 2", 1.0, season=2),
             candidate(1, "Example S2", 0.99, season=2,
-                      matched_alias="Example S2 Part 2")],
+                      matched_alias="Example S2")],
             selected=2, name="Example S02E01.mkv")
         self.assertEqual(unique_exact_work_candidate(b["groups"][0])["anidb_id"], 2)
 
