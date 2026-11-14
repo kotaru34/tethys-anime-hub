@@ -28,6 +28,12 @@ def _compact_title(title):
     parts = canonical.split()
     if parts and parts[-1] in _ROMAN_SEASONS:
         parts[-1] = _ROMAN_SEASONS[parts[-1]]
+    # Normalize only a terminal, explicitly labeled season suffix.
+    # A bare number inside a title must not become an inferred season.
+    if len(parts) >= 3 and parts[-1] == "season" and parts[-2].isdigit():
+        parts.pop()
+    elif len(parts) >= 3 and parts[-2] == "season" and parts[-1].isdigit():
+        parts.pop(-2)
     canonical = " ".join(parts)
     # Full-length romaji permits an exact comparison without whitespace.
     # Short works require full word-boundary equality; no fuzzy similarity.
@@ -133,19 +139,34 @@ def unique_tv_work(group, *, failure=None):
     return next(iter(found.values()))
 
 
-def _batch_rows(group, eligible=None):
+def _batch_rows(group, eligible=None, *, failure=None):
+    """Collect the numbered main episodes, not unrelated bonuses in a batch.
+
+    This can tolerate explicitly classified specials and extras in the same
+    torrent. It never uses their numbering to complete a TV season and never
+    silently skips an unknown/unclassified file.
+    """
+    def reject(reason):
+        if failure is not None:
+            failure.append(reason)
+        return None
+
     folder = group.get("folder") or ""
     rows = []
     for row in group.get("files") or []:
         rel = str(row.get("path") or "")
         path = PurePosixPath(rel)
-        if len(path.parts) != 2 or path.parts[0] != folder:
-            return None
+        if not path.parts or path.parts[0] != folder:
+            return reject("file_outside_release_folder")
         info = classify_episode(rel, group=folder)
-        if info.category != "Episode":
-            # OVA, specials and extras are excluded from TV evidence and
-            # cannot be promoted even if they share the title folder.
+        if info.category in {"Extra", "Special"}:
+            # Explicitly marked non-TV works remain unlinked and never serve
+            # as positive evidence for the main season.
             continue
+        if len(path.parts) != 2:
+            return reject("nested_unclassified_or_tv_file")
+        if info.category != "Episode":
+            return reject("unparseable_main_episode")
         if (not isinstance(info.number, int) or info.number <= 0
                 or row.get("episode") != info.number
                 or row.get("episode_type") != "Episode"
@@ -154,15 +175,15 @@ def _batch_rows(group, eligible=None):
                                        "approved_file_override", "nested_exact_work",
                                        "public_crosswalk", "prior_exact_title",
                                        "verified_second_season"}):
-            return None
+            return reject("episode_number_or_existing_proof_conflict")
         if eligible is not None and int(row.get("file_id") or 0) not in eligible:
-            return None
+            return reject("ineligible_main_episode")
         rows.append((info.number, row))
     if len(rows) < 6:
-        return None
+        return reject("insufficient_numbered_main_episodes")
     numbers = [number for number, _ in rows]
     if len(numbers) != len(set(numbers)):
-        return None
+        return reject("duplicate_main_episode_number")
     return rows
 
 
@@ -191,9 +212,10 @@ def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None):
     candidate = unique_tv_work(group)
     if candidate is None:
         return reject("work_identity_not_unique")
-    rows = _batch_rows(group, eligible)
+    row_failure = []
+    rows = _batch_rows(group, eligible, failure=row_failure)
     if not rows:
-        return reject("file_episode_parsing_or_layout")
+        return reject(row_failure[0] if row_failure else "file_episode_parsing_or_layout")
     numbers = {number for number, _ in rows}
     if numbers != set(range(1, len(numbers) + 1)):
         return reject("non_contiguous_local_episode_numbers")
@@ -209,8 +231,12 @@ def tv_batch_proof(api, group, *, eligible=None, cache=None, failure=None):
     n = len(ordinary)
     if not (6 <= n <= 26 and ordinary == set(range(1, n + 1))):
         return reject("anidb_ordinary_episodes_not_contiguous")
-    if numbers != ordinary:
-        return reject("partial_release" if numbers < ordinary else "episode_inventory_mismatch")
+    # A verified season may be still airing: E01..E07 of a 12-episode
+    # work is legitimate. Require an exact, unique work, a contiguous
+    # beginning-of-season prefix, and real Shoko AniDB Episode XRefs for
+    # every released file. Missing episodes are never invented.
+    if not numbers <= ordinary:
+        return reject("episode_inventory_mismatch")
     return aid, n, [row for _, row in rows]
 
 
@@ -293,7 +319,7 @@ def promote_verified_tv_batch(api, plan, eligible, *, diagnostics=None,
             row["target_anidb_id"] = aid
             row["mode"] = "verified_tv_batch"
             row["verified_tv_episode_count"] = count
-            row["reason"] = "unique full TV title and Shoko verified complete AniDB E01..EN inventory"
+            row["reason"] = "unique full TV title, contiguous E01..EK release and verified AniDB E01..EN inventory"
             promoted += 1
         diagnostics["verified_tv_groups"] = diagnostics.get("verified_tv_groups", 0) + 1
     diagnostics["proof_gate_reasons"] = dict(sorted(proof_gates.items()))

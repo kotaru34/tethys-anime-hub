@@ -78,13 +78,18 @@ class CompleteTvBatchTests(unittest.TestCase):
         self.assertEqual(api.linked[0], (101, 55, 1, "Episode"))
         self.assertEqual(api.linked[-1], (126, 55, 26, "Episode"))
 
-    def test_incomplete_batch_does_not_substitute_fuzzy_guess(self):
+    def test_prefix_batch_can_link_when_exact_work_and_full_anidb_inventory(self):
         api = FakeShoko()
         p = plan(count=25)
         eligible = {r["file_id"] for r in p["groups"][0]["files"]}
-        self.assertEqual(promote_verified_tv_batch(api, p, eligible), 0)
-        self.assertTrue(all(r["mode"] == "strong_context"
+        self.assertEqual(promote_verified_tv_batch(api, p, eligible), 25)
+        self.assertTrue(all(r["mode"] == "verified_tv_batch"
                             for r in p["groups"][0]["files"]))
+        safe, rejected = keep_safe_rows(p, eligible)
+        self.assertEqual(rejected, 0)
+        result = apply(api, safe, delay=0)
+        self.assertEqual(result["submitted"], 25)
+        self.assertEqual(api.linked[-1], (125, 55, 25, "Episode"))
 
     def test_nonexistent_anidb_episode_blocks_entire_batch(self):
         api = FakeShoko(count=25)

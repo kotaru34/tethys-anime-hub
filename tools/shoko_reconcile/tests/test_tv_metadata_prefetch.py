@@ -101,7 +101,7 @@ class MetadataPrefetchTests(unittest.TestCase):
         self.assertEqual(diagnostics["proof_gate_reasons"], {"episode_inventory_empty": 1})
         self.assertEqual(api.refreshes, [16027])
 
-    def test_partial_release_does_not_queue_repeated_refreshes(self):
+    def test_verified_ongoing_prefix_links_without_metadata_refreshes(self):
         api = API(state="ready")
         plan = sample_plan()
         plan["groups"][0]["files"] = plan["groups"][0]["files"][:7]
@@ -109,8 +109,8 @@ class MetadataPrefetchTests(unittest.TestCase):
         diagnostics = {}
         self.assertEqual(promote_verified_tv_batch(
             api, plan, eligible, diagnostics=diagnostics,
-            prefetch_missing=True, refresh_requests={}), 0)
-        self.assertEqual(diagnostics["proof_gate_reasons"], {"partial_release": 1})
+            prefetch_missing=True, refresh_requests={}), 7)
+        self.assertEqual(diagnostics["verified_tv_groups"], 1)
         self.assertEqual(api.refreshes, [])
 
     def test_same_title_two_anidb_works_never_prefetches(self):
