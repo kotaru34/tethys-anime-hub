@@ -2,7 +2,9 @@
 """Event-driven Shoko 5.3.3 Reconciler using the native SignalR aggregate hub.
 
 Shoko sends Shoko:FileNotMatched for misses and Queue:QueueStateChanged
-for scheduler activity. Subscribes to both; a bounded /Queue recheck prevents\nmissed idle notifications from blocking an event-triggered reconciliation.
+for scheduler activity. Subscribes to both; linking checks file stability
+and individual series/episode readiness without waiting for unrelated Shoko
+queue jobs such as poster and character-image downloads.
 Use --apply only after confirming the dry-run behavior on your host.
 """
 from __future__ import annotations
@@ -15,7 +17,7 @@ import threading
 import time
 from urllib.parse import urlsplit
 
-from auto_fallback import run as reconcile, queue_is_busy
+from auto_fallback import run as reconcile
 from catalog import AliasCatalog
 from shoko_reconcile import ShokoAPI
 
@@ -52,21 +54,18 @@ def websocket_url(shoko_url):
     return f"ws://{host}/signalr/aggregate?feeds=shoko,queue"
 
 
-def wait_until_queue_idle(api, idle_event, *, retry_seconds=30):
-    """Wait for true queue idleness; SignalR can miss the busy->idle edge.
+def retry_delay_for(result, *, minimum_age, metadata_retry_seconds=60):
+    """Schedule only useful work, independently of Shoko image jobs.
 
-    Check the live Shoko queue before any wait. If it is busy, listen for an
-    idle event, but always wake after a bounded interval and recheck via API.
-    This is only called during an already-triggered reconciliation, not a
-    periodic library-wide scan.
+    If metadata are missing, retry *that* unfinished linking workflow on a
+    bounded interval. If files have not met the stable-file age threshold,
+    retry after that threshold. No global queue-idle requirement.
     """
-    while queue_is_busy(api):
-        print(f"Shoko queue still busy; rechecking within {retry_seconds}s", flush=True)
-        idle_event.wait(timeout=retry_seconds)
-        # Clear stale idle notifications even when a timeout occurs: the next
-        # iteration must be based on actual /Queue state, not an old event.
-        idle_event.clear()
-
+    if result.get("awaiting_series_refresh", 0) or result.get("errors", 0):
+        return metadata_retry_seconds
+    if result.get("currently_unrecognized", 0) > result.get("mature_stable_unknown", 0):
+        return minimum_age + 2
+    return None
 
 
 class Coordinator:
@@ -79,6 +78,10 @@ class Coordinator:
         self.do_apply = do_apply
         self.state_path = state_path
         self.plan_path = plan_path
+        # Throttle metadata refresh requests across attempts to prevent
+        # duplicate refresh/image jobs while waiting for the *specific* AniDB
+        # series to become available.
+        self.refresh_requests = {}
         self.pending = threading.Event()
         self.idle = threading.Event()
         self.worker = threading.Thread(target=self.process, name="shoko-fallback", daemon=True)
@@ -104,27 +107,31 @@ class Coordinator:
         result = reconcile(
             self.api, state_path=self.state_path, plan_path=self.plan_path,
             catalog=self.catalog, minimum_age=self.minimum_age,
-            do_apply=do_apply)
+            do_apply=do_apply, refresh_requests=self.refresh_requests)
         print(json.dumps(result, sort_keys=True), flush=True)
         return result
 
     def process(self):
+        retry_delay = None
         while True:
-            self.pending.wait()
+            # Run immediately on an event or service startup. Timed retries
+            # occur ONLY for pending series metadata, still-maturing files,
+            # and transient API/link errors. Image download jobs never gate
+            # the worker. Event.set() during a run remains pending.
+            self.pending.wait(timeout=retry_delay)
             self.pending.clear()
             try:
-                first = self.reconcile(False)
-                if not first["currently_unrecognized"]:
-                    continue
-                # One event-triggered grace period. Not a recurring polling timer.
-                time.sleep(self.minimum_age + 2)
-                # SignalR idle events may be lost during imports/reconnects.
-                # Never block forever when /Queue is already empty.
-                wait_until_queue_idle(self.api, self.idle)
-                print("Shoko queue idle confirmed via API; running fallback", flush=True)
-                self.reconcile(self.do_apply)
+                result = self.reconcile(self.do_apply)
+                retry_delay = retry_delay_for(result, minimum_age=self.minimum_age)
+                if retry_delay is not None:
+                    print(f"Pending file/series work; retry in up to {retry_delay}s "
+                          "(no global queue wait)", flush=True)
             except Exception as exc:
-                print(f"Reconciliation event failed: {type(exc).__name__}: {exc}", flush=True)
+                # Shoko may be restarting (HTTP 503). Retry on a bounded timer
+                # even if no new SignalR event arrives after it comes back.
+                retry_delay = 30
+                print(f"Reconciliation event failed: {type(exc).__name__}: {exc}; "
+                      f"retry in up to {retry_delay}s", flush=True)
 
 
 def resolve_apply_mode(cli_apply=False, cli_confirm="", service_setting=""):
@@ -164,7 +171,7 @@ def main(argv=None):
         state_path=args.state, plan_path=args.plan, do_apply=do_apply)
 
     try:
-        from websocket import create_connection
+        from websocket import create_connection, WebSocketException
     except ImportError as exc:
         raise SystemExit("Install websocket-client into the service virtualenv") from exc
 
@@ -176,11 +183,9 @@ def main(argv=None):
                 ws.send(HANDSHAKE)
                 # Startup/reconnect reconciliation catches events lost while offline.
                 coordinator.pending.set()
-                state = api.request("GET", "/Queue")
-                if queue_idle({**state, "Running": True}):
-                    coordinator.idle.set()
-                else:
-                    coordinator.idle.clear()
+                # No /Queue read is necessary for linking. A new connection
+                # must survive a Shoko startup period with API 503 responses.
+                coordinator.idle.clear()
                 while True:
                     msg = ws.recv()
                     if not msg:
@@ -189,7 +194,7 @@ def main(argv=None):
                         coordinator.received(target, data)
             finally:
                 ws.close()
-        except (OSError, ValueError, ConnectionError) as exc:
+        except (OSError, ValueError, ConnectionError, RuntimeError, WebSocketException) as exc:
             print(f"SignalR disconnected: {type(exc).__name__}: {exc}", flush=True)
         # Reconnect backoff, not a scheduled scan.
         time.sleep(5)
