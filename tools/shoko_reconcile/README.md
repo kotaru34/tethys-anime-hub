@@ -242,6 +242,37 @@ no independent episode evidence, and any newly imported titles for which no
 source-backed crosswalk exists. Lowering counts is not a justification to
 fabricate AniDB File records or force an episode assignment.
 
+## Why approved AUTO-LINK items can still show `deferred`
+
+The early `approved_for_auto` count only means the *selection policy*
+accepts a file. The final `apply()` independently checks Shoko's current
+unrecognized status, unchanged source path, actual local AniDB work and
+the target episode type/number. These checks may correctly defer rows.
+
+A historical bug allowed `sibling_consensus` candidates based on two
+different, recognized E-numbered files in the same exact directory, but
+the final `apply()` then unconditionally applied the **fuzzy candidate**
+season guard. This rejected independently verified sibling evidence when
+the fuzzy search had no season entry, yielding
+`approved_for_auto:16, deferred:16, submitted:0` without explanation.
+
+Now the final link boundary rechecks that same sibling identity directly
+against Shoko's current file XRefs, *without* requiring unrelated fuzzy
+season evidence. In the ordinary event pass, its already-fetched sibling
+index is reused to avoid a second whole-file enumeration. In later
+saved-plan metadata retries or standalone apply, XRefs are re-read.
+**AniDB episode existence and work identity are never bypassed.**
+
+Each result now includes `deferred_by_reason` and sample
+`deferred_examples` (only IDs and episode numbers), distinguishing:
+`target_season_unsupported`, `source_path_changed`,
+`already_recognized_or_missing_in_shoko`,
+`sibling_consensus_changed_since_plan`, and
+`episode_number_or_type_absent_in_anidb`.
+Only `awaiting_series_refresh` represents missing metadata that should
+get an automatic retry. A deferred *nonexistent* episode must not be
+fabricated or linked to a neighboring episode.
+
 ## Immediate final-file linking (qBittorrent owns completion)
 
 `Shoko /Queue` includes background artwork fetches. The SignalR worker

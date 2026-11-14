@@ -58,17 +58,50 @@ def sibling_index(api):
     return index
 
 
-def promote_linked_siblings(api, plan, eligible):
+def sibling_work_evidence(index, group, row):
+    """Return (AniDB work ID, independent episode count), or None.
+
+    This is the same evidence check for both initial promotion and the
+    final apply boundary. It never trusts a previously saved count alone.
+    """
+    if group.get("mixed_season_source"):
+        return None
+    rel = str(row.get("path") or "")
+    folder = _path_key(rel)
+    if folder is None:
+        return None
+    info = classify_episode(rel, group=group.get("folder") or "")
+    if (info.category != "Episode" or not isinstance(info.number, int)
+            or info.number <= 0 or row.get("episode_type") != "Episode"
+            or row.get("episode") != info.number):
+        return None
+    if row.get("source_episode") is not None and row["source_episode"] != info.number:
+        return None
+    evidence = index.get(folder)
+    if not evidence or len(evidence["work_ids"]) != 1:
+        return None
+    aid = next(iter(evidence["work_ids"]))
+    if any(anchor[3] != info.season for anchor in evidence["anchors"]):
+        return None
+    anchors = [a for a in evidence["anchors"] if a[1] == aid and a[3] == info.season]
+    if len({a[0] for a in anchors}) < 2:
+        return None
+    distinct_episode_count = len({a[2] for a in anchors})
+    if distinct_episode_count < 2:
+        return None
+    return aid, distinct_episode_count
+
+
+def promote_linked_siblings(api, plan, eligible, *, reference=None):
     """Upgrade only fresh, stable unknown E-numbered files with strong anchors.
 
     Return count promoted to sibling_consensus. Real episode existence and
     file path remain independently checked in shoko_reconcile.apply().
     """
-    reference = sibling_index(api)
+    if reference is None:
+        reference = sibling_index(api)
     promoted = 0
     for group in plan.get("groups", []):
-        if group.get("mixed_season_source"):
-            continue
         for row in group.get("files", []):
             if int(row["file_id"]) not in eligible:
                 continue
@@ -76,35 +109,18 @@ def promote_linked_siblings(api, plan, eligible):
                                     "approved_override", "public_crosswalk",
                                     "nested_exact_work", "prior_exact_title"):
                 continue
-            rel = str(row.get("path") or "")
-            folder = _path_key(rel)
-            if folder is None:
+            proof = sibling_work_evidence(reference, group, row)
+            if proof is None:
                 continue
-            info = classify_episode(rel, group=group.get("folder") or "")
-            if (info.category != "Episode" or not isinstance(info.number, int)
-                    or info.number <= 0 or row.get("episode_type") != "Episode"
-                    or row.get("episode") != info.number):
-                continue
-            evidence = reference.get(folder)
-            if not evidence or len(evidence["work_ids"]) != 1:
-                continue
-            aid = next(iter(evidence["work_ids"]))
-            anchors = [a for a in evidence["anchors"] if a[1] == aid and a[3] == info.season]
-            # Reject any other season in this folder, even if that file would
-            # otherwise count as a harmless additional recognized episode.
-            if any(a[3] != info.season for a in evidence["anchors"]):
-                continue
-            if len({a[0] for a in anchors}) < 2 or len({a[2] for a in anchors}) < 2:
-                continue
-            # If a separate title matcher chose a *different* work, the
-            # conflict needs review rather than overwriting its guess.
+            aid, count = proof
+            # A different work already independently chosen needs review.
             existing_aid = row.get("target_anidb_id")
             if existing_aid and int(existing_aid) != aid:
                 continue
             row["target_anidb_id"] = aid
             row["mode"] = "sibling_consensus"
-            row["source_episode"] = info.number
-            row["sibling_evidence_count"] = len({a[2] for a in anchors})
+            row["source_episode"] = row["episode"]
+            row["sibling_evidence_count"] = count
             row["reason"] = "two or more separately numbered Shoko-linked sibling episodes in exact directory"
             promoted += 1
     return promoted

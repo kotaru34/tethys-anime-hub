@@ -7,7 +7,7 @@ only after explicit --apply --confirm LINK. Supports offline revision of v1 repo
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
+from collections import defaultdict, Counter
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -319,18 +319,37 @@ def _series_id_from_api(value):
 
 
 def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
-          refresh_requests=None, refresh_cooldown=900):
-    if plan.get("version")!=2:raise ValueError("Only version-2 plans may be applied")
-    if limit is not None and limit<1:raise ValueError("Limit must be positive")
-    current={int(f["ID"]):f for f in api.unrecognized()}
-    done=failed=deferred=pending=0
-    series_cache={};episodes_cache={}
-    audit=[]
-    should_stop=False
-    # Also deduplicate within a single manual apply() when the caller did not
-    # supply a persistent service-owned refresh throttle dictionary.
+          refresh_requests=None, refresh_cooldown=900, sibling_reference=None):
+    """Apply a fresh safe plan, recording *why* each row was not submitted.
+
+    A Shoko sibling-consensus link uses a different, stronger independent
+    proof than fuzzy title/season inference. Revalidate that live proof
+    before writing; never bypass actual AniDB episode existence checks.
+    """
+    if plan.get("version") != 2:
+        raise ValueError("Only version-2 plans may be applied")
+    if limit is not None and limit < 1:
+        raise ValueError("Limit must be positive")
+    current = {int(f["ID"]): f for f in api.unrecognized()}
+    done = failed = deferred = pending = 0
+    series_cache = {}
+    episodes_cache = {}
+    deferred_by_reason = Counter()
+    deferred_examples = defaultdict(list)
+    audit = []
+    should_stop = False
     if refresh_requests is None:
         refresh_requests = {}
+
+    def defer(reason, row):
+        nonlocal deferred
+        deferred += 1
+        deferred_by_reason[reason] += 1
+        samples = deferred_examples[reason]
+        if len(samples) < 3:
+            samples.append({"file_id": row.get("file_id"),
+                            "anidb_id": row.get("target_anidb_id"),
+                            "episode": row.get("episode")})
 
     def queue_series_refresh_if_due(aid):
         now = time.monotonic()
@@ -341,72 +360,99 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
 
     for group in plan["groups"]:
         for row in group["files"]:
-            if limit is not None and done+failed+pending>=limit:
-                should_stop=True;break
-            aid=row.get("target_anidb_id")
-            ep=row.get("episode")
-            if row.get("mode") in ("review","episode_review","extra") or not aid or not ep:
-                deferred+=1;continue
-            if not target_season_supported(group, row):
-                deferred+=1
-                print(f"SKIP unsupported season file={row.get('file_id')} target={aid}",file=sys.stderr)
+            if limit is not None and done + failed + pending >= limit:
+                should_stop = True
+                break
+            aid = row.get("target_anidb_id")
+            ep = row.get("episode")
+            mode = row.get("mode")
+            if mode in ("review", "episode_review", "extra") or not aid or not ep:
+                defer("incomplete_or_manual_review_row", row)
                 continue
-            fid=int(row["file_id"])
-            source=current.get(fid)
+            fid = int(row["file_id"])
+            source = current.get(fid)
             if not source:
-                deferred+=1;continue
-            paths={l.get("RelativePath") for l in source.get("Locations") or []}
+                defer("already_recognized_or_missing_in_shoko", row)
+                continue
+            paths = {l.get("RelativePath") for l in source.get("Locations") or []}
             if row.get("path") not in paths:
-                deferred+=1;print(f"SKIP stale file {fid}",file=sys.stderr);continue
-            aid=int(aid)
+                defer("source_path_changed", row)
+                continue
+
+            if mode == "sibling_consensus":
+                # Initial candidate selection already verified two different
+                # known episodes in the same exact folder. Its target may
+                # lack a separate ranked-title 'season' record: that is not
+                # a reason to reject this independently evidenced linkage.
+                # But don't trust saved-plan flags without fresh Shoko XRefs.
+                if int(row.get("sibling_evidence_count") or 0) < 2:
+                    defer("insufficient_sibling_consensus_proof", row)
+                    continue
+                from local_siblings import sibling_index, sibling_work_evidence
+                if sibling_reference is None:
+                    sibling_reference = sibling_index(api)
+                proof = sibling_work_evidence(sibling_reference, group, row)
+                if proof is None or int(proof[0]) != int(aid) or proof[1] < 2:
+                    defer("sibling_consensus_changed_since_plan", row)
+                    continue
+            elif not target_season_supported(group, row):
+                defer("target_season_unsupported", row)
+                continue
+
+            aid = int(aid)
             if aid not in series_cache:
-                series=api.local_series(aid)
-                sid=_series_id_from_api(series)
+                series = api.local_series(aid)
+                sid = _series_id_from_api(series)
                 if sid:
-                    actual=(series.get("IDs") or {}).get("AniDB")
-                    if actual is None or int(actual)!=aid:
+                    actual = (series.get("IDs") or {}).get("AniDB")
+                    if actual is None or int(actual) != aid:
                         raise RuntimeError(f"Shoko series identity mismatch for AniDB {aid}")
                 else:
-                    # Metadata refresh is per AniDB work and cooldown-limited.
-                    # It does not depend on image downloads or full queue idle.
                     queue_series_refresh_if_due(aid)
-                series_cache[aid]=sid
-            sid=series_cache[aid]
+                series_cache[aid] = sid
+            sid = series_cache[aid]
             if not sid:
-                pending+=1;continue
-            if sid not in episodes_cache:
-                episodes_cache[sid]=api.available_episodes(sid)
-            if not episodes_cache[sid]:
-                # A local series entry may exist before AniDB episode metadata
-                # becomes available. Only retry this missing work; never wait
-                # for Shoko to finish downloading unrelated artwork.
-                queue_series_refresh_if_due(aid)
-                pending+=1
+                pending += 1
                 continue
-            kind=str(row.get("episode_type") or "Episode")
-            actual_kind = "Episode" if kind=="Movie" else kind
-            available=episodes_cache[sid]
-            if isinstance(available,set) and all(isinstance(a,int) for a in available):
-                exists=(actual_kind=="Episode" and int(ep) in available)
-            else:exists=(actual_kind,int(ep)) in available
+            if sid not in episodes_cache:
+                episodes_cache[sid] = api.available_episodes(sid)
+            if not episodes_cache[sid]:
+                queue_series_refresh_if_due(aid)
+                pending += 1
+                continue
+            kind = str(row.get("episode_type") or "Episode")
+            actual_kind = "Episode" if kind == "Movie" else kind
+            available = episodes_cache[sid]
+            if isinstance(available, set) and all(isinstance(a, int) for a in available):
+                exists = actual_kind == "Episode" and int(ep) in available
+            else:
+                exists = (actual_kind, int(ep)) in available
             if not exists:
-                deferred+=1;continue
+                defer("episode_number_or_type_absent_in_anidb", row)
+                continue
             try:
-                api.link(fid,sid,int(ep),kind)
-                done+=1
-                audit.append({"file_id":fid,"anidb_id":aid,"shoko_series_id":sid,
-                              "episode":ep,"type":kind,"result":"submitted"})
-                print(f"SUBMITTED file={fid} AniDB={aid} series={sid} {kind}={ep}")
+                api.link(fid, sid, int(ep), kind)
+                done += 1
+                audit.append({"file_id": fid, "anidb_id": aid, "shoko_series_id": sid,
+                              "episode": ep, "type": kind, "result": "submitted"})
+                print(f"SUBMITTED file={fid} AniDB={aid} series={sid} {kind}={ep}", flush=True)
             except Exception as ex:
-                failed+=1;print(f"ERROR file={fid}: {ex}",file=sys.stderr)
-                audit.append({"file_id":fid,"anidb_id":aid,"episode":ep,"type":kind,
-                              "result":"error","message":str(ex)[:240]})
+                failed += 1
+                print(f"ERROR file={fid}: {ex}", file=sys.stderr, flush=True)
+                audit.append({"file_id": fid, "anidb_id": aid, "episode": ep,
+                              "type": kind, "result": "error", "message": str(ex)[:240]})
             if journal:
-                _write_private_json(journal,{"version":1,"attempts":audit})
-            if delay:time.sleep(delay)
-        if should_stop:break
-    return {"submitted":done,"errors":failed,"awaiting_series_refresh":pending,
-            "deferred":deferred,"audit":audit}
+                _write_private_json(journal, {"version": 1, "attempts": audit})
+            if delay:
+                time.sleep(delay)
+        if should_stop:
+            break
+
+    return {"submitted": done, "errors": failed,
+            "awaiting_series_refresh": pending, "deferred": deferred,
+            "deferred_by_reason": dict(deferred_by_reason.most_common()),
+            "deferred_examples": dict(deferred_examples),
+            "audit": audit}
 
 
 def _write_private_json(path,obj):
