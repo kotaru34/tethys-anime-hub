@@ -450,6 +450,9 @@ def rank_candidates(queries: list[str], candidates: list[dict], *, folder: str =
         val={"anidb_id":int(aid),"shoko_id":c.get("shoko_id") or c.get("ShokoID"),
              "title":title,"type":type_,"score":round(max(0,min(1,adjusted)),4),
              "title_score":round(raw_score,4),"matched_alias":matched,
+             # Preserve all aliases for independent exact-work checks. The
+             # highest-scoring alias may match a different generated query.
+             "aliases":c.get("aliases") or [],"Titles":c.get("Titles") or [],
              "year":candidate_y,"episodes":c.get("episodes"),"season":candidate_s,
              "source":c.get("source","shoko")}
         if aid not in best or best[aid]["score"]<val["score"]:best[aid]=val
