@@ -242,6 +242,35 @@ no independent episode evidence, and any newly imported titles for which no
 source-backed crosswalk exists. Lowering counts is not a justification to
 fabricate AniDB File records or force an episode assignment.
 
+## Missed imports and absolute E-numbered multi-season releases
+
+The Shoko 5.3.3 `shoko` SignalR feed publishes file-detected and file-hashed
+events as well as file-not-matched. A new unknown may not produce the latter;
+that previously left the worker sleeping despite an increased Unrecognized
+count. We now subscribe to all three file-import events. Additionally, when
+idle, the worker calls only Shoko `GET /File?include_only=Unrecognized&pageSize=1&page=1`
+once per minute. It compares the returned `Total` with the last snapshot
+and **reconciles only on an increase**, not on artwork queue activity or
+unchanged counts. This is a one-record Shoko API metadata check, not torrent
+or media-filesystem polling.
+
+A 26-episode release can be two separate AniDB 13-episode TV works
+under one **absolute** E01–E26 numbering scheme, e.g. Kamonohashi Ron.
+`season_continuations.py` maps source E14–E26 to **S2 E01–E13** only if
+live Shoko episode metadata verifies a contiguous full first season,
+the source has at least three contiguous overflow episodes starting at N+1,
+two already linked recognized sibling anchors establish the original work
+in the exact directory, and live Shoko AniDB search returns **one**
+exactly titled `<full title> 2nd Season` entry for a distinct work.
+The target's AniDB work identity and actual episode are rechecked at apply
+time. A second-season AniDB ID is never fabricated.
+
+An isolated TV E13 after a 12-episode season (typically OVA),
+an explicit `(OVA 1)` file, and an interstitial `10.5` recap do not
+automatically turn into ordinary main-series episodes. Out-of-range
+sibling guesses are demoted to `episode_review`; specials require their
+actual AniDB special/OVA identity, not a convenient guessed offset.
+
 ## Why approved AUTO-LINK items can still show `deferred`
 
 The early `approved_for_auto` count only means the *selection policy*
@@ -289,8 +318,7 @@ Shoko has a valid local target series and episode.
   be a regular, non-empty file and not escape the mount through a symlink.
   During `apply()`, Shoko's latest unrecognized-file status, original path,
   AniDB work ID and verified episode are checked again.
-- The SignalR bridge reacts to `Shoko:FileNotMatched` plus startup/reconnect
-  events. It ignores background queue-state changes.
+- The SignalR bridge reacts to **Shoko 5.3.3 `Shoko:FileDetected`, `Shoko:FileHashed` and `Shoko:FileNotMatched`** plus startup/reconnect. A short coalescing window avoids one expensive full-library reconciliation per imported episode. It ignores background image/queue-state changes.
 - Only missing **specific** AniDB series/episode metadata are retried
   periodically (with rate-limited refreshes), using the already prepared
   safe plan instead of repeating title search. Temporary Shoko 503 errors

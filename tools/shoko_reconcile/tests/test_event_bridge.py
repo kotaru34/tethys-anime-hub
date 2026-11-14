@@ -54,6 +54,33 @@ class UnrelatedQueueJobsTests(unittest.TestCase):
         worker.received("Shoko:FileNotMatched", [{"FileID": 7}])
         self.assertTrue(worker.pending.is_set())
 
+    def test_hash_and_detect_events_trigger_but_artwork_queue_does_not(self):
+        worker = object.__new__(Coordinator)
+        worker.pending = threading.Event()
+        for name in ("Shoko:FileDetected", "Shoko:FileHashed",
+                     "Shoko:FileNotMatched"):
+            worker.received(name, [{"FileID": 42}])
+            self.assertTrue(worker.pending.is_set(), name)
+            worker.pending.clear()
+        for name in ("Shoko:FileMatched", "Queue:QueueStateChanged",
+                     "Shoko:SeriesUpdated"):
+            worker.received(name, [{"FileID": 42}])
+            self.assertFalse(worker.pending.is_set(), name)
+
+    def test_light_unknown_count_uses_one_page_not_library_enumeration(self):
+        class API:
+            def __init__(self): self.calls = []
+            def request(self, method, path, params=None):
+                self.calls.append((method, path, params))
+                return {"Total": 148, "List": [{"ID": 1}]}
+        worker = object.__new__(Coordinator)
+        worker.api = API()
+        self.assertEqual(worker.unknown_count(), 148)
+        self.assertEqual(worker.api.calls, [
+            ("GET", "/File", {"include_only": "Unrecognized",
+                              "pageSize": 1, "page": 1})
+        ])
+
     def test_only_metadata_triggers_timed_retries(self):
         self.assertIsNone(retry_delay_for({
             "currently_unrecognized": 100,

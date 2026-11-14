@@ -124,3 +124,42 @@ def promote_linked_siblings(api, plan, eligible, *, reference=None):
             row["reason"] = "two or more separately numbered Shoko-linked sibling episodes in exact directory"
             promoted += 1
     return promoted
+
+def demote_nonexistent_sibling_episodes(api, plan, *, reference=None):
+    """Reject sibling E-number guesses not actually present in that AniDB work.
+
+    This prevents an E13 OVA in a 12-episode TV and an absolute E14..26 in
+    a 13-episode season from being counted as valid sibling links.
+    A separate verified-season-split pass may first redirect E14..26 to S2.
+    """
+    available_cache = {}
+    demoted = 0
+    for group in plan.get("groups", []):
+        for row in group.get("files", []):
+            if row.get("mode") != "sibling_consensus":
+                continue
+            aid = row.get("target_anidb_id")
+            ep = row.get("episode")
+            if not isinstance(aid, int) or not isinstance(ep, int):
+                continue
+            info = classify_episode(row.get("path") or "", group=group.get("folder") or "")
+            invalid = info.category != "Episode" or info.number != ep
+            if aid not in available_cache:
+                series = api.local_series(aid)
+                ids = (series or {}).get("IDs") or {}
+                sid = ids.get("ID")
+                if sid and int(ids.get("AniDB") or -1) == aid:
+                    available_cache[aid] = api.available_episodes(int(sid))
+                else:
+                    available_cache[aid] = None
+            episodes = available_cache[aid]
+            # If a local series is not ready yet, do not fabricate its
+            # episode list. apply() will request metadata and defer.
+            if episodes is not None and ("Episode", ep) not in episodes:
+                invalid = True
+            if invalid:
+                row["target_anidb_id"] = None
+                row["mode"] = "episode_review"
+                row["reason"] = "sibling work has no matching normal AniDB episode; possible OVA/recap/sequel"
+                demoted += 1
+    return demoted

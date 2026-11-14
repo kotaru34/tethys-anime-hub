@@ -62,11 +62,22 @@ def auto_link_rejection_reason(group, row):
         if (row.get("episode_type") != "Episode"
                 or int(row.get("sibling_evidence_count") or 0) < 2):
             return "insufficient_sibling_episode_evidence"
+    elif mode == "verified_second_season":
+        # The actual first-work episode count and exact AniDB sequel title
+        # are re-verified at apply(), not inferred from a fuzzy S2 score.
+        offset = row.get("split_first_episode_count")
+        first = row.get("split_first_anidb_id")
+        source = row.get("source_episode")
+        target = row.get("episode")
+        if not all(isinstance(x, int) for x in (offset, first, source, target)):
+            return "sequel_split_evidence_missing"
+        if offset < 6 or target < 1 or target > offset or source != offset + target:
+            return "sequel_split_evidence_mismatch"
     elif not target_season_supported(group, row):
         return "candidate_season_unsupported"
     if mode not in {"approved_release", "public_crosswalk", "prior_exact_title",
                     "nested_exact_work", "exact_work_title", "auto_evidence",
-                    "strong_context", "sibling_consensus"}:
+                    "strong_context", "sibling_consensus", "verified_second_season"}:
         return "mode_requires_manual_review"
     if mode == "exact_work_title":
         # Independently recompute full-title uniqueness at the write boundary.
@@ -86,8 +97,17 @@ def auto_link_rejection_reason(group, row):
     if not isinstance(aid, int) or not isinstance(ep, int) or ep <= 0:
         return "missing_work_or_episode_identity"
     src = row.get("source_episode")
-    if src is not None and src != ep:
+    if src is not None and src != ep and mode != "verified_second_season":
         return "episode_number_shift_requires_review"
+    if mode != "approved_release":
+        # Fractional releases like Goblin Slayer 10.5 are interstitial
+        # recaps, not AniDB special S10. Do not guess their special number.
+        from matching import classify_episode
+        info = classify_episode(row.get("path") or "", group=group.get("folder") or "")
+        if info.fraction is not None and mode != "approved_file_override":
+            return "fractional_episode_special_identity_unverified"
+        if mode == "sibling_consensus" and info.category != "Episode":
+            return "sibling_filename_is_not_normal_episode"
     if mode in {"auto_evidence", "strong_context"}:
         candidates = group.get("candidates") or []
         selected = [c for c in candidates if c.get("anidb_id") == aid]
@@ -195,6 +215,24 @@ def run(api, *, state_path=None, plan_path, media_root="/Anime", catalog=None,
         # A missing/unsupported XRefs list should never prevent the existing
         # safe-title policy from doing its work.
         summary["sibling_evidence_error"] = f"{type(exc).__name__}: {exc}"
+    # Convert absolute episode numbering (e.g. E14..E26 in a 13+13 TV
+    # release) only with verified Shoko S1 episode count, two matching
+    # sibling anchors, and an exact distinct AniDB '2nd Season' work.
+    # No generic subtraction based on filename alone.
+    try:
+        from season_continuations import promote_verified_second_season
+        summary["verified_second_season_promoted"] = promote_verified_second_season(
+            api, plan, eligible, reference=sibling_reference)
+    except Exception as exc:
+        summary["sequel_evidence_error"] = f"{type(exc).__name__}: {exc}"
+    # Any remaining sibling E13+ whose episode does not exist in its
+    # original work must remain review; applying it would only defer forever.
+    try:
+        from local_siblings import demote_nonexistent_sibling_episodes
+        summary["out_of_range_siblings_demoted"] = demote_nonexistent_sibling_episodes(
+            api, plan, reference=sibling_reference)
+    except Exception as exc:
+        summary["sibling_episode_check_error"] = f"{type(exc).__name__}: {exc}"
     # Keep a current, read-only-to-operators inspection snapshot even when
     # *nothing* qualifies for auto-link. This is the critical case when
     # unknowns exceed the configured quality target.

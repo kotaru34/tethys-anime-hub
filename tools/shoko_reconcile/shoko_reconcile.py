@@ -334,6 +334,8 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
     done = failed = deferred = pending = 0
     series_cache = {}
     episodes_cache = {}
+    sequel_episode_counts = {}
+    sequel_identity_cache = {}
     deferred_by_reason = Counter()
     deferred_examples = defaultdict(list)
     audit = []
@@ -379,22 +381,28 @@ def apply(api: ShokoAPI, plan, *, delay=0.2, limit=None, journal=None,
                 defer("source_path_changed", row)
                 continue
 
-            if mode == "sibling_consensus":
-                # Initial candidate selection already verified two different
-                # known episodes in the same exact folder. Its target may
-                # lack a separate ranked-title 'season' record: that is not
-                # a reason to reject this independently evidenced linkage.
-                # But don't trust saved-plan flags without fresh Shoko XRefs.
-                if int(row.get("sibling_evidence_count") or 0) < 2:
-                    defer("insufficient_sibling_consensus_proof", row)
-                    continue
+            if mode in ("sibling_consensus", "verified_second_season"):
+                # Recheck exact-directory recognized XRefs; the second-season
+                # mode also checks live S1 episode count and exact S2 identity.
                 from local_siblings import sibling_index, sibling_work_evidence
                 if sibling_reference is None:
                     sibling_reference = sibling_index(api)
-                proof = sibling_work_evidence(sibling_reference, group, row)
-                if proof is None or int(proof[0]) != int(aid) or proof[1] < 2:
-                    defer("sibling_consensus_changed_since_plan", row)
-                    continue
+                if mode == "sibling_consensus":
+                    if int(row.get("sibling_evidence_count") or 0) < 2:
+                        defer("insufficient_sibling_consensus_proof", row)
+                        continue
+                    proof = sibling_work_evidence(sibling_reference, group, row)
+                    if proof is None or int(proof[0]) != int(aid) or proof[1] < 2:
+                        defer("sibling_consensus_changed_since_plan", row)
+                        continue
+                else:
+                    from season_continuations import verify_split_row
+                    if not verify_split_row(api, group, row,
+                                            reference=sibling_reference,
+                                            episode_counts=sequel_episode_counts,
+                                            sequel_ids=sequel_identity_cache):
+                        defer("sequel_split_live_proof_missing", row)
+                        continue
             elif not target_season_supported(group, row):
                 defer("target_season_unsupported", row)
                 continue
