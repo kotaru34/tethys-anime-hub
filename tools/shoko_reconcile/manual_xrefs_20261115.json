@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "source": "Shoko CT2601 shoko-review.json + shoko-episode-details.json, 2026-11-15",
+  "policy": "Operator-reviewed, default dry-run only. Live exact FileID/path/work/episode-ID/type/title validation is mandatory before applying. No changes to /Anime.",
+  "entries": [
+    {
+      "file_id": 3321,
+      "path": "High School DxD/High School D×D - 13 (OVA 1).mp4",
+      "anidb_id": 8925,
+      "shoko_series_id": 243,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 136473,
+      "title": "Boobs Bloom!"
+    },
+    {
+      "file_id": 2383,
+      "path": "Jaku-Chara Tomozaki-kun OVA - AniLibria.TV [WEBRip 1080p HEVC]/Jaku-Chara_Tomozaki-kun_OVA_[01]_[AniLibria_TV]_[WEBRip_1080p_HEVC].mkv",
+      "anidb_id": 15144,
+      "shoko_series_id": 179,
+      "type": "Special",
+      "episode": 1,
+      "anidb_episode_id": 240766,
+      "title": "Post-Game Equipment for Girls Is a Little Different Than Usual"
+    },
+    {
+      "file_id": 2384,
+      "path": "Jaku-Chara Tomozaki-kun OVA - AniLibria.TV [WEBRip 1080p HEVC]/Jaku-Chara_Tomozaki-kun_OVA_[02]_[AniLibria_TV]_[WEBRip_1080p_HEVC].mkv",
+      "anidb_id": 15144,
+      "shoko_series_id": 179,
+      "type": "Special",
+      "episode": 2,
+      "anidb_episode_id": 240767,
+      "title": "Most Strange Spell Names Have Unknown Origins"
+    },
+    {
+      "file_id": 3345,
+      "path": "Kaguya-sama wa Kokurasetai First Kiss wa Owaranai - AniLibria.TV [WEBRip 1080p HEVC]/Kaguya-sama_wa_Kokurasetai_First_Kiss_wa_Owaranai_[02]_[AniLibria_TV]_[WEBRip_1080p_HEVC].mkv",
+      "anidb_id": 17477,
+      "shoko_series_id": 254,
+      "type": "Other",
+      "episode": 2,
+      "anidb_episode_id": 264919,
+      "title": "About Kaguya Shinomiya, Part 4 / Kaguya Wants to Be Noticed (Ice) / Kaguya Wants to Forgive (Ice)"
+    },
+    {
+      "file_id": 3346,
+      "path": "Kaguya-sama wa Kokurasetai First Kiss wa Owaranai - AniLibria.TV [WEBRip 1080p HEVC]/Kaguya-sama_wa_Kokurasetai_First_Kiss_wa_Owaranai_[03]_[AniLibria_TV]_[WEBRip_1080p_HEVC].mkv",
+      "anidb_id": 17477,
+      "shoko_series_id": 254,
+      "type": "Other",
+      "episode": 3,
+      "anidb_episode_id": 264920,
+      "title": "Kaguya Wants to Eat It (Ice) / Our Persona / Kaguya Wants to Confess (Ice)"
+    },
+    {
+      "file_id": 3347,
+      "path": "Kaguya-sama wa Kokurasetai First Kiss wa Owaranai - AniLibria.TV [WEBRip 1080p HEVC]/Kaguya-sama_wa_Kokurasetai_First_Kiss_wa_Owaranai_[04]_[AniLibria_TV]_[WEBRip_1080p_HEVC].mkv",
+      "anidb_id": 17477,
+      "shoko_series_id": 254,
+      "type": "Other",
+      "episode": 4,
+      "anidb_episode_id": 264921,
+      "title": "Kaguya Is Fine with It"
+    },
+    {
+      "file_id": 3350,
+      "path": "Kaguya-sama wa Kokurasetai Otona e no Kaidan - AniLiberty [WEBRip 1080p HEVC]/Kaguya-sama_wa_Kokurasetai_Otona_e_no_Kaidan_[02]_[HEVC].mkv",
+      "anidb_id": 19402,
+      "shoko_series_id": 255,
+      "type": "Other",
+      "episode": 2,
+      "anidb_episode_id": 306565,
+      "title": "The ABCs of Men and Women / Kaguya Wants to Talk / Kaguya Wants to See Them Off"
+    },
+    {
+      "file_id": 2742,
+      "path": "Konoyo no Hate de Koi o Utau Shoujo YU-NO - OVA - AniLibria.TV [BDRip 1080p HEVC]/Konoyo_no_Hate_de_Koi_o_Utau_Shoujo_YU-NO_[26.5]_[OVA]_[AniLibria_TV]_[BDRip_1080p_HEVC].mkv",
+      "anidb_id": 12693,
+      "shoko_series_id": 263,
+      "type": "Special",
+      "episode": 2,
+      "anidb_episode_id": 229603,
+      "title": "Infinite Parallel Worlds"
+    },
+    {
+      "file_id": 3213,
+      "path": "[Erai-raws] Goblin Slayer/[Erai-raws] Goblin Slayer - 10.5 [1080p].mkv",
+      "anidb_id": 13831,
+      "shoko_series_id": 252,
+      "type": "Special",
+      "episode": 1,
+      "anidb_episode_id": 210970,
+      "title": "Adventure Sheet"
+    },
+    {
+      "file_id": 3142,
+      "path": "[Snow-Raws] High School DxD Born [BDRip 1920x1080 HEVC FLAC]/[Snow-Raws] High School DxD BorN SP - 01 [BDRip 1920x1080 HEVC FLAC].mkv",
+      "anidb_id": 10691,
+      "shoko_series_id": 265,
+      "type": "Special",
+      "episode": 1,
+      "anidb_episode_id": 170975,
+      "title": "Maximum Titillation: Rias and Akeno's Womanly Battle!?"
+    },
+    {
+      "file_id": 3152,
+      "path": "[Snow-Raws] High School DxD Born [BDRip 1920x1080 HEVC FLAC]/[Snow-Raws] High School DxD BorN SP - 02 [BDRip 1920x1080 HEVC FLAC].mkv",
+      "anidb_id": 10691,
+      "shoko_series_id": 265,
+      "type": "Special",
+      "episode": 2,
+      "anidb_episode_id": 171263,
+      "title": "Maximum Titillation: The Church Trio's Underwear, Amen!"
+    },
+    {
+      "file_id": 3146,
+      "path": "[Snow-Raws] High School DxD Born [BDRip 1920x1080 HEVC FLAC]/[Snow-Raws] High School DxD BorN SP - 03 [BDRip 1920x1080 HEVC FLAC].mkv",
+      "anidb_id": 10691,
+      "shoko_series_id": 265,
+      "type": "Special",
+      "episode": 3,
+      "anidb_episode_id": 171262,
+      "title": "Maximum Titillation: Koneko's Healing Sage Arts, Meow"
+    },
+    {
+      "file_id": 3139,
+      "path": "[Snow-Raws] High School DxD Born [BDRip 1920x1080 HEVC FLAC]/[Snow-Raws] High School DxD BorN SP - 04 [BDRip 1920x1080 HEVC FLAC].mkv",
+      "anidb_id": 10691,
+      "shoko_series_id": 265,
+      "type": "Special",
+      "episode": 4,
+      "anidb_episode_id": 171261,
+      "title": "Maximum Titillation: Levia and So"
+    },
+    {
+      "file_id": 3154,
+      "path": "[Snow-Raws] High School DxD Born [BDRip 1920x1080 HEVC FLAC]/[Snow-Raws] High School DxD BorN SP - 05 [BDRip 1920x1080 HEVC FLAC].mkv",
+      "anidb_id": 10691,
+      "shoko_series_id": 265,
+      "type": "Special",
+      "episode": 5,
+      "anidb_episode_id": 174931,
+      "title": "Maximum Titillation: Steamy Grayfia"
+    },
+    {
+      "file_id": 3151,
+      "path": "[Snow-Raws] High School DxD Born [BDRip 1920x1080 HEVC FLAC]/[Snow-Raws] High School DxD BorN SP - 06 [BDRip 1920x1080 HEVC FLAC].mkv",
+      "anidb_id": 10691,
+      "shoko_series_id": 265,
+      "type": "Special",
+      "episode": 6,
+      "anidb_episode_id": 174932,
+      "title": "Maximum Titillation: Rossweisse's True Teaching Story!"
+    }
+  ]
+}
