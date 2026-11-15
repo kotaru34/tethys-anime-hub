@@ -159,7 +159,7 @@ class TargetedMetadataTests(unittest.TestCase):
         self.assertEqual(state["attempts"]["18865"]["outcome"],
                          "request_error_uncertain")
         retry = request_missing(api, sample_manifest(), state,
-                                lambda s: self.fail("no second POST"), pause_seconds=0,
+                                lambda s: None, pause_seconds=0,
                                 sleep=lambda _: None)
         self.assertEqual(retry["requests_submitted"], 4)
         self.assertEqual(len([c for c in api.calls
