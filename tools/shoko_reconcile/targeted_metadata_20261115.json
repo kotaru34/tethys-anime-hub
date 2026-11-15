@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "purpose": "One-time targeted metadata creation only. No episode XRefs, no file writes or scanning.",
+  "source": "CT2601 November 2026 shoko-review.json, shoko-reviewed-58-proposals.json, shoko-review-inventory.json, 15/15 previous manual XRef submissions",
+  "works": [
+    {
+      "anidb_id": 14570,
+      "title": "Nekopara (2020 TV)",
+      "expected_file_ids": [
+        3337,
+        3333,
+        3344,
+        3342,
+        3339,
+        3340,
+        3334,
+        3338,
+        3341,
+        3335,
+        3336,
+        3343
+      ],
+      "expected_episode_numbers": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "note": "12 numbered AniLibria WEBRip TV episodes. The separate Nekopara OVA/ONA AniDB works are excluded."
+    },
+    {
+      "anidb_id": 18865,
+      "title": "Kono Subarashii Sekai ni Shukufuku wo! 3 Bonus Stage",
+      "expected_file_ids": [
+        2972,
+        2973
+      ],
+      "expected_episode_numbers": [
+        1,
+        2
+      ],
+      "note": "Two 2025 Bonus Stage OVA files; standalone work identity found in exact Shoko title search."
+    },
+    {
+      "anidb_id": 11143,
+      "title": "Akatsuki no Yona OVA (2015)",
+      "expected_file_ids": [
+        2489,
+        2485,
+        2486
+      ],
+      "expected_episode_numbers": [
+        1,
+        2,
+        3
+      ],
+      "note": "Three OVA files. Third file named (03+SP) may bundle a supplementary segment; do not authorize any XRef until separately checked."
+    },
+    {
+      "anidb_id": 14397,
+      "title": "Seishun Buta Yarou wa Yumemiru Shoujo no Yume wo Minai",
+      "expected_file_ids": [
+        3037
+      ],
+      "expected_episode_numbers": [
+        1
+      ],
+      "note": "Single feature film. Verify local AniDB Episode 1 and full release identity before linking."
+    },
+    {
+      "anidb_id": 17640,
+      "title": "Seishun Buta Yarou wa Odekake Sister no Yume wo Minai",
+      "expected_file_ids": [
+        3040
+      ],
+      "expected_episode_numbers": [
+        1
+      ],
+      "note": "Single feature film. Verify local AniDB Episode 1 and full release identity before linking."
+    },
+    {
+      "anidb_id": 17862,
+      "title": "Seishun Buta Yarou wa Randoseru Girl no Yume wo Minai",
+      "expected_file_ids": [
+        3038
+      ],
+      "expected_episode_numbers": [
+        1
+      ],
+      "note": "Single feature film. Verify local AniDB Episode 1 and full release identity before linking."
+    }
+  ]
+}
