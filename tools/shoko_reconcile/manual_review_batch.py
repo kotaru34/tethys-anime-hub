@@ -182,13 +182,14 @@ def main(argv=None):
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--confirm", default="")
     args = parser.parse_args(argv)
-    if args.apply and args.confirm != "APPLY_SHOKO_XREFS_15":
-        parser.error("Applying needs --confirm APPLY_SHOKO_XREFS_15")
     key = os.getenv("SHOKO_API_KEY")
     if not key:
         parser.error("Export SHOKO_API_KEY first (never printed or saved)")
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    validate_manifest(manifest)
+    entries = validate_manifest(manifest)
+    expected_confirmation = f"APPLY_SHOKO_XREFS_{len(entries)}"
+    if args.apply and args.confirm != expected_confirmation:
+        parser.error(f"Applying needs --confirm {expected_confirmation}")
     api = ShokoAPI(args.url, key)
     report = apply_batch(api, manifest) if args.apply else preflight(api, manifest)
     if args.report:

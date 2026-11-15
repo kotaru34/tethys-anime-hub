@@ -1,0 +1,197 @@
+{
+  "schema": 1,
+  "source": "CT2601 shoko-review.json + shoko-reviewed-58-proposals.json + shoko-metadata-episodes.json (six present_ready AniDB works), 2026-11-15",
+  "policy": "Curation only; default dry-run. Each row exact file ID/path and AniDB episode ID/type/number/title must be freshly checked against CT2601. EXCLUDED File 2486 Akatsuki no Yona (03+SP) until combined E03+S01 content is validated. No /Anime writes.",
+  "entries": [
+    {
+      "file_id": 3337,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[01]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 225607,
+      "title": "Welcome to La Soleil!"
+    },
+    {
+      "file_id": 3333,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[02]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 2,
+      "anidb_episode_id": 225608,
+      "title": "A Lost Kitten?"
+    },
+    {
+      "file_id": 3344,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[03]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 3,
+      "anidb_episode_id": 225609,
+      "title": "The One on My Mind"
+    },
+    {
+      "file_id": 3342,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[04]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 4,
+      "anidb_episode_id": 225610,
+      "title": "The First Time...!"
+    },
+    {
+      "file_id": 3339,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[05]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 5,
+      "anidb_episode_id": 226293,
+      "title": "Cacao's Adventure"
+    },
+    {
+      "file_id": 3340,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[06]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 6,
+      "anidb_episode_id": 226294,
+      "title": "Battles Without Honor and Cat-Humanity!"
+    },
+    {
+      "file_id": 3334,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[07]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 7,
+      "anidb_episode_id": 226295,
+      "title": "House-Sitting Cats"
+    },
+    {
+      "file_id": 3338,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[08]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 8,
+      "anidb_episode_id": 226296,
+      "title": "The Melancholy of Shigure"
+    },
+    {
+      "file_id": 3341,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[09]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 9,
+      "anidb_episode_id": 227027,
+      "title": "True Feelings"
+    },
+    {
+      "file_id": 3335,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[10]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 10,
+      "anidb_episode_id": 227028,
+      "title": "Oh No! Bell Renewal Exams"
+    },
+    {
+      "file_id": 3336,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[11]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 11,
+      "anidb_episode_id": 227029,
+      "title": "Cacao Repays Her Debts"
+    },
+    {
+      "file_id": 3343,
+      "path": "Nekopara - AniLibria [WEBRip 1080p]/Nekopara_[12]_[END]_[AniLibria]_[WEBRip_1080p].mkv",
+      "anidb_id": 14570,
+      "shoko_series_id": 268,
+      "type": "Episode",
+      "episode": 12,
+      "anidb_episode_id": 227030,
+      "title": "Summer Beach Cat Paradise!"
+    },
+    {
+      "file_id": 2972,
+      "path": "Kono Subarashii Sekai ni Shukufuku wo! S3 OVA - AniLiberty [BDRip 1080p HEVC]/Kono_Subarashii_Sekai_ni_Shukufuku_wo_S3_[OVA_1_HEVC].mkv",
+      "anidb_id": 18865,
+      "shoko_series_id": 269,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 289757,
+      "title": "Red Stream Explosion!"
+    },
+    {
+      "file_id": 2973,
+      "path": "Kono Subarashii Sekai ni Shukufuku wo! S3 OVA - AniLiberty [BDRip 1080p HEVC]/Kono_Subarashii_Sekai_ni_Shukufuku_wo_S3_[OVA_2_HEVC].mkv",
+      "anidb_id": 18865,
+      "shoko_series_id": 269,
+      "type": "Episode",
+      "episode": 2,
+      "anidb_episode_id": 289758,
+      "title": "Watch Out for Impostors!"
+    },
+    {
+      "file_id": 2489,
+      "path": "Akatsuki no Yona OVA/Akatsuki no Yona OVA (01).mkv",
+      "anidb_id": 11143,
+      "shoko_series_id": 270,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 168556,
+      "title": "On That Back"
+    },
+    {
+      "file_id": 2485,
+      "path": "Akatsuki no Yona OVA/Akatsuki no Yona OVA (02).mkv",
+      "anidb_id": 11143,
+      "shoko_series_id": 270,
+      "type": "Episode",
+      "episode": 2,
+      "anidb_episode_id": 176848,
+      "title": "The Yellow Dragon Zeno's Past, Part 1: The Starting Dragon"
+    },
+    {
+      "file_id": 3037,
+      "path": "Seishun Buta Yarou wa Yumemiru Shoujo no Yume wo Minai - AniLibria.TV [BDRip 1080p HEVC]/Seishun_Buta_Yarou_wa_Yumemiru_Shoujo_no_Yume_wo_Minai_[AniLibria_TV]_[BDRip_1080p_HEVC].mkv",
+      "anidb_id": 14397,
+      "shoko_series_id": 271,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 212488,
+      "title": "Complete Movie"
+    },
+    {
+      "file_id": 3040,
+      "path": "Seishun Buta Yarou wa Odekake Sister no Yume wo Minai - AniLibria.TV [BDRip 1080p]/Seishun_Buta_Yarou_wa_Odekake_Sister_no_Yume_wo_Minai_[AniLibria_TV]_[BDRip_1080p].mkv",
+      "anidb_id": 17640,
+      "shoko_series_id": 272,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 264813,
+      "title": "Complete Movie"
+    },
+    {
+      "file_id": 3038,
+      "path": "Seishun Buta Yarou wa Randoseru Girl no Yume wo Minai - AniLibria [BDRip 1080p HEVC]/Seishun_Buta_Yarou_wa_Randoseru_Girl_no_Yume_wo_Minai_[AniLibria]_[BDRip_1080p_HEVC].mkv",
+      "anidb_id": 17862,
+      "shoko_series_id": 273,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 269266,
+      "title": "Complete Movie"
+    }
+  ]
+}
