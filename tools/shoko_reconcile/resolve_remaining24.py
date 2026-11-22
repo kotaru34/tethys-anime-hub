@@ -203,14 +203,18 @@ def choose_clip(index, fid, size):
     # A source-edition match is required to trust Moozzi2 NCED numbering.
     if fid in DAL_NCED and not release_size_proven(fid,size):
         return None, "date_a_live_release_size_not_verified"
+    # Moozzi2 NCED-10 is the *first* (and only) ending of the separately
+    # catalogued Date to Date OVA, even though it is the tenth bonus clip
+    # of the combined S1 release. Never ask AniDB 9734 for "Ending 10".
+    work_ordinal = 1 if fid == DAL_NCED[-1] else ordinal
     candidates = [ep for ep in metadata
-                  if category_title(ep["title"],group) == (group,ordinal)]
+                  if category_title(ep["title"],group) == (group,work_ordinal)]
     if len(candidates) != 1:
         return None, "anidb_clip_variant_missing_or_ambiguous"
     # When there is only one numbered *file*, a simple "PV"/"Ending"
     # label may work; for multiple versions require distinct ordinal labels.
-    if ordinal > 1:
-        if category_title(candidates[0]["title"],group) != (group,ordinal):
+    if work_ordinal > 1:
+        if category_title(candidates[0]["title"],group) != (group,work_ordinal):
             return None, "clip_ordinal_not_proven"
     # Do not map 10 different NCED files to one generic ending.
     return candidates[0], None
