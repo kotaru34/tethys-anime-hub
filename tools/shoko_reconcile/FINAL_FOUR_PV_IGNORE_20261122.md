@@ -31,3 +31,20 @@ Before any request: one bounded Unrecognized listing plus four exact `GET /File/
 
 To reverse later, Shoko's UI can unmark a video as Ignored; the API inverse is `PUT /api/v3/File/{id}/Ignore?value=false` (do not need to move any MKV).
 
+
+## Shoko 5.3.3 API compatibility correction
+
+On the operator's first run, the initial read-only preflight failed on
+`File 2994: missing cross-references from include=XRefs`, before any PUT
+or journal write. Verified against the **actual upstream tag
+[`v5.3.3` File.cs](https://github.com/ShokoAnime/ShokoServer/blob/v5.3.3/Shoko.Server/API/v3/Models/Shoko/File.cs)**:
+the model includes `SeriesIDs` when `include=XRefs` is requested, but does
+**not define** `MetadataCrossReferences`. The latter exists in newer Shoko
+versions and must therefore be an *optional* field.
+
+The corrected script **requires** a valid `SeriesIDs` list, treats an
+**absent** `MetadataCrossReferences` as an empty list on 5.3.3, and still
+rejects malformed or nonempty values when newer versions supply it. It
+also requires exact File ID, path, Unrecognized membership and
+`IsIgnored=false` before writing. No write was made during the failed
+preflight, so the normal command above can be rerun unchanged.
