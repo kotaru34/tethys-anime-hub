@@ -127,7 +127,7 @@ class Final10Tests(unittest.TestCase):
             {"already_correct":2,"ready_new_link":4,"ready_correction":3})
         self.assertEqual(len(others),6)
         self.assertEqual(len([x for x in api.calls if x[1]=="/File"]),1)
-        self.assertEqual(len([x for x in api.calls if x[1].startswith("/File/")]),15)
+        self.assertEqual(len([x for x in api.calls if isinstance(x[1], str) and x[1].startswith("/File/")]),15)
         self.assertFalse(any(x[0]=="POST" for x in api.calls))
 
     def test_apply_updates_exactly_7_and_verifies_each(self):
