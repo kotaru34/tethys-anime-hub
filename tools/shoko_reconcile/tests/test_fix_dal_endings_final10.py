@@ -30,6 +30,7 @@ class FakeShoko:
         self.malform_xrefs=False
         self.unrecognized=set()
         self.delayed_visibility_reads={}
+        self.post_transient_empty_reads={}
         self.post_previous_refs={}
         self.credits={1:(148985,"Opening")}
         for ordinal,fid,num,eid,title,mib,old_id in ENDINGS:
@@ -75,6 +76,11 @@ class FakeShoko:
                 fid in self.post_previous_refs):
                 self.delayed_visibility_reads[fid] -= 1
                 data["SeriesIDs"]=self.post_previous_refs[fid]
+            if (fid in self.post_transient_empty_reads and
+                self.post_transient_empty_reads[fid] > 0 and
+                fid in self.post_previous_refs):
+                self.post_transient_empty_reads[fid] -= 1
+                data["SeriesIDs"]=[]
             return data
         raise AssertionError(f"Unexpected endpoint {path}")
 
@@ -231,14 +237,17 @@ class Final10Tests(unittest.TestCase):
         self.assertEqual(result["rows"][3432]["status"],
                          "prior_attempt_still_unverified_no_retry")
 
-    def test_unverified_post_aborts_and_does_not_repeat(self):
+    def test_unverified_post_continues_independent_files_without_repeat(self):
         api=FakeShoko()
         api.return_unverified=3432
         st=fresh_state()
         result=apply_safe(api,st,lambda _:None,verify_wait=0)
-        self.assertEqual(result["mode"],"apply_interrupted_unverified")
+        self.assertEqual(result["mode"],"apply_completed_pending_confirmation")
         self.assertEqual(st["attempts"]["3432"]["outcome"],"submitted_unverified")
-        self.assertEqual(result["verified_after_write"],1)
+        self.assertEqual(result["submitted"],7)
+        self.assertEqual(result["verified_after_write"],6)
+        self.assertEqual(result["rows"][3432]["status"],"submitted_unverified")
+        self.assertEqual(len(api.posts),7)
 
     def test_prior_submitted_unverified_resumes_other_six_without_repeat(self):
         api=FakeShoko()
@@ -248,7 +257,7 @@ class Final10Tests(unittest.TestCase):
             "old":None,"new":149639}
         report=apply_safe(api,state,lambda _:None,verify_wait=0)
         self.assertEqual(report["mode"],
-                         "apply_completed_other_links_pending_prior_confirmation")
+                         "apply_completed_pending_confirmation")
         self.assertEqual(report["submitted"],6)
         self.assertEqual(report["verified_after_write"],6)
         self.assertEqual(report["rows"][3430]["status"],
@@ -312,6 +321,77 @@ class Final10Tests(unittest.TestCase):
         self.assertEqual(report["verified_after_write"],7)
         self.assertEqual(now[0],2.0)
         self.assertEqual([post[0] for post in api.posts].count(3430),1)
+
+    def test_actual_3432_empty_xref_from_uploaded_report_resumes_remaining_five(self):
+        api=FakeShoko()
+        # In the previous CT2601 run 3430 eventually acquired EID 149639.
+        # The POST to correct 3432 was ACKed but returned [] afterwards.
+        api.link(3430,SID,3,"Credits")
+        api.posts.clear()
+        api.files[3432]["SeriesIDs"]=[]
+        api.unrecognized.add(3432)
+        state=fresh_state()
+        state["attempts"]["3430"]={
+            "at":123,"outcome":"verified_on_resume","old":None,"new":149639}
+        state["attempts"]["3432"]={
+            "at":124,"outcome":"submitted_conflicting_xref",
+            "old":150419,"new":154716}
+        report=apply_safe(api,state,lambda _:None,verify_wait=0)
+        self.assertEqual(report["mode"],"apply_completed_pending_confirmation")
+        self.assertEqual(report["rows"][3432]["status"],
+                         "prior_attempt_still_unverified_no_retry")
+        self.assertEqual(report["rows"][3432]["last_recovery_observation"],[])
+        self.assertEqual(report["submitted"],5)
+        self.assertEqual(report["verified_after_write"],5)
+        self.assertEqual({x[0] for x in api.posts},
+                         {3437,3438,3429,3439,3434})
+        self.assertNotIn(3432,[x[0] for x in api.posts])
+
+    def test_empty_xref_without_matching_prior_journal_blocks_corrections(self):
+        api=FakeShoko()
+        api.files[3432]["SeriesIDs"]=[]
+        result=apply_safe(api,fresh_state(),lambda _:None)
+        self.assertEqual(result["mode"],
+                         "apply_aborted_unexpected_existing_xrefs")
+        self.assertEqual(result["submitted"],0)
+        self.assertEqual(result["rows"][3432]["status"],"blocked")
+        self.assertEqual(api.posts,[])
+
+    def test_empty_transitional_xref_during_replace_is_not_conflict(self):
+        api=FakeShoko()
+        api.post_transient_empty_reads[3432]=2
+        tick=[0.]
+        def clock():return tick[0]
+        def sleeper(n):tick[0]+=n
+        report=apply_safe(api,fresh_state(),lambda _:None,
+                          sleep=sleeper,monotonic=clock,verify_wait=5)
+        self.assertEqual(report["mode"],"apply")
+        self.assertEqual(report["submitted"],7)
+        self.assertEqual(report["verified_after_write"],7)
+        self.assertEqual(report["rows"][3432]["status"],
+                         "xref_verified_corrected")
+        self.assertEqual(tick[0],2.0)
+        self.assertEqual(len([p for p in api.posts if p[0]==3432]),1)
+
+    def test_unexpected_nonempty_xref_after_post_stops_other_writes(self):
+        api=FakeShoko()
+        # A different mapped AniDB episode is not a harmless transition.
+        api.bad_post_seen_id=3432
+        original_request=api.request
+        def request(method,path,params=None,body=None):
+            data=original_request(method,path,params,body)
+            if path=="/File/3432" and any(x[0]==3432 for x in api.posts):
+                data["SeriesIDs"]=[{
+                    "SeriesID":{"ID":SID,"AniDB":AID},
+                    "EpisodeIDs":[{"AniDB":999999}]}]
+            return data
+        api.request=request
+        result=apply_safe(api,fresh_state(),lambda _:None,verify_wait=0)
+        self.assertEqual(result["mode"],
+                         "apply_interrupted_unexpected_xrefs")
+        self.assertEqual(result["rows"][3432]["status"],
+                         "submitted_conflicting_xref")
+        self.assertEqual([p[0] for p in api.posts],[3430,3432])
 
     def test_journal_rejects_foreign_aniDB_work(self):
         with tempfile.TemporaryDirectory() as tmp:

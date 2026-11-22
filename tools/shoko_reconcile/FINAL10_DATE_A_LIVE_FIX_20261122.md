@@ -71,3 +71,28 @@ Possible outcomes:
 - `mode: apply_interrupted_unverified`: a different newly submitted XRef is not yet visible within the bounded verification window; its attempt is journaled, and rerunning is safe without repeated network writes.
 
 **Do not run `curl POST` or manually link 3430 until the pending state has been resolved**. This patch makes no filesystem changes, schedules no refresh and touches no other media.
+
+## CT2601 second-run report: temporary empty XRef during correction
+
+The operator's subsequent `shoko-final10-resume.json` shows:
+- **3430 is now correct** (AniDB 8808 / EID 149639).
+- **3432 had POST sent** to replace old EID 150419 with 154716, but the immediate read of `?include=XRefs` returned **`[]`**. This *is not an observed conflicting AniDB episode*; it can occur while Shoko is removing an old release mapping and building its new one.
+- **3437, 3438, 3429, 3439, 3434** were not sent in that run.
+- Four PVs and two standalone DxD OVAs remain separate outside the corrective scope.
+
+The script formerly classified empty XRefs after a correction as `submitted_conflicting_xref` and aborted. This was wrong. The new recovery logic treats `[]` after a **journalled** replacement POST as an unverified transition, never resubmits that file, and continues the **five** other independently safe XRefs. Unexpected **nonempty** XRefs from another episode still abort. A pre-existing empty XRef without an exact prior attempt remains a preflight failure.
+
+Re-run **one** command (preserve both earlier reports, and keep the journal untouched):
+
+```bash
+cd /opt/tethys-anime-hub
+git pull --ff-only
+cd tools/shoko_reconcile
+python3 fix_dal_endings_final10.py \
+  --apply --confirm CORRECT_DAL_NCED_XREFS_9 \
+  --report /root/shoko-final10-recovered.json
+```
+
+Default bounded verification per new XRef is now 3 seconds (adjustable with `--verify-wait 0..60`). An individual XRef still pending does **not** stop writes for other files. The tool makes one final read-only pass over pending XRefs and records `apply_completed_pending_confirmation` if anything is still awaiting Shoko processing. Journalled File IDs are never POSTed twice.
+
+Expected if no intervening file changes: **up to five new POSTs**: two corrections (3437 and 3438) plus three new XRefs (3429, 3439, 3434); 3432 must be confirmed separately from its already-dispatched request. A final state of six unrecognized files is **conditional** on all nine NCED XRefs actually becoming visible.
