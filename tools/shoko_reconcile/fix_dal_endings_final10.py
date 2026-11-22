@@ -180,10 +180,16 @@ def inspection(api,state):
                     attempted.get("old") != old_eid):
                 row.update(status="blocked",
                            reason="journal_target_mismatch")
-            elif ((old_eid is None and refs == [] and fid in unknown) or
+            elif (refs == [] or
                   (old_eid is not None and refs == [(AID,old_eid)])):
+                # Shoko can temporarily clear the existing episode mapping
+                # while processing the replacement. This is PENDING, not a
+                # conflicting cross-reference. Journal proves a POST was
+                # already attempted: never send another request for fid.
                 row["status"] = "previous_attempt_pending_no_duplicate"
-                row["reason"] = "Earlier XRef POST may still be processing; no resend"
+                row["reason"] = (
+                    "Previous POST may be processing; empty or prior XRef "
+                    "is not proof of failure. No duplicate POST.")
             else:
                 row.update(status="blocked",
                            reason="previous_attempt_unexpected_actual_xref")
@@ -216,8 +222,9 @@ def wait_for_expected_xref(api, fid, target_eid, previous_eid, *,
     """Bounded eventual-consistency check after POST; never repeat the POST.
 
     Only accept exactly the intended AniDB episode as proof. The previous
-    link (for a correction) or no link yet (for a new assignment) is a
-    transient, not permission to retry. A conflicting XRef fails closed.
+    link (for a correction) or no link yet (for a new assignment), AND
+    an empty XRef during replacement, are transient states, not permission
+    to retry. Only a different NONEMPTY XRef is a real conflict.
     """
     expected = [(AID,target_eid)]
     old = [(AID,previous_eid)] if previous_eid is not None else []
@@ -230,7 +237,9 @@ def wait_for_expected_xref(api, fid, target_eid, previous_eid, *,
             last = f"{type(exc).__name__}: {str(exc)[:180]}"
         if last == expected:
             return "verified", last
-        if isinstance(last, list) and last != old:
+        if isinstance(last, list) and last and last != old:
+            # Empty [] during Shoko's old-XRef removal is a transient.
+            # The only conflict is a different, nonempty mapping.
             return "conflicting", last
         if monotonic() >= deadline:
             return "pending", last
@@ -311,19 +320,58 @@ def apply_safe(api,state,persist, *,
                 "submitted_unverified" if result == "pending" else
                 "submitted_conflicting_xref")
             row["last_observed_xrefs"] = seen
-            report["mode"] = (
-                "apply_interrupted_unverified" if result == "pending" else
-                "apply_interrupted_unexpected_xrefs")
+            if result == "pending":
+                # Each File ID is independent. Continue the other pinned,
+                # fully preflighted XRefs instead of forcing another user
+                # session when an asynchronous mapping is still empty.
+                # This File ID is journalled, so no later invocation can
+                # submit it twice.
+                continue
+            report["mode"] = "apply_interrupted_unexpected_xrefs"
             break
         state["attempts"][str(fid)]["outcome"]="verified"
         persist(state)
         row["status"]="xref_verified_corrected" if old_eid is not None \
                       else "xref_verified_new"
         report["verified_after_write"]+=1
-    if (report["mode"] == "apply" and any(
-        row["status"] == "prior_attempt_still_unverified_no_retry"
-        for row in rows.values())):
-        report["mode"] = "apply_completed_other_links_pending_prior_confirmation"
+    # One final read-only sweep after all safe writes. Background Shoko
+    # processing may have finished earlier requests while later files were
+    # being submitted; no repeat POSTs are ever issued during this sweep.
+    if report["mode"] == "apply":
+        for _,fid,_,eid,_,_,old_eid in ENDINGS:
+            row = rows[fid]
+            if row["status"] not in (
+                    "submitted_unverified",
+                    "prior_attempt_still_unverified_no_retry"):
+                continue
+            try:
+                observed = current_refs(get_file(api,fid))
+            except Exception as exc:
+                row["final_verify_error"] = (
+                    f"{type(exc).__name__}: {str(exc)[:180]}")
+                continue
+            row["final_observed_xrefs"] = observed
+            if observed == [(AID,eid)]:
+                from_this_run = row["status"] == "submitted_unverified"
+                row["status"] = (
+                    ("xref_verified_corrected" if old_eid is not None
+                     else "xref_verified_new") if from_this_run
+                    else "prior_attempt_now_verified")
+                state["attempts"][str(fid)]["outcome"] = (
+                    "verified" if from_this_run else "verified_on_resume")
+                persist(state)
+                report["verified_after_write"] += 1
+            elif observed not in (
+                    [], [(AID,old_eid)] if old_eid is not None else []):
+                row["status"] = "blocked_conflicting_xref_at_final_check"
+                report["mode"] = "apply_interrupted_unexpected_xrefs"
+                break
+        if report["mode"] == "apply" and any(
+            row["status"] in (
+                "submitted_unverified",
+                "prior_attempt_still_unverified_no_retry")
+            for row in rows.values()):
+            report["mode"] = "apply_completed_pending_confirmation"
     return finalize(report)
 
 
@@ -355,8 +403,8 @@ def main(argv=None):
                    default=Path("/root/shoko-final10-correction.json"))
     p.add_argument("--apply",action="store_true")
     p.add_argument("--confirm",default="")
-    p.add_argument("--verify-wait",type=int,default=15,
-                   help="Bounded seconds to observe a submitted XRef (0..60)")
+    p.add_argument("--verify-wait",type=int,default=3,
+                   help="Seconds to observe each submitted XRef (0..60); pending links are journaled and do not block other files")
     a=p.parse_args(argv)
     if a.apply and a.confirm!="CORRECT_DAL_NCED_XREFS_9":
         p.error("Use --confirm CORRECT_DAL_NCED_XREFS_9")
@@ -392,6 +440,7 @@ def main(argv=None):
         "apply_interrupted_uncertain",
         "apply_interrupted_unverified",
         "apply_completed_other_links_pending_prior_confirmation",
+        "apply_completed_pending_confirmation",
     ))
 
 if __name__=="__main__":
