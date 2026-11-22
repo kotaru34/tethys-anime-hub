@@ -22,6 +22,9 @@ class API:
         self.paths=dict(PATHS)
         self.xrefs={}
         self.metadata_refs={}
+        # Shoko v5.3.3 omits MetadataCrossReferences entirely. Newer
+        # versions may supply it, and we still inspect any supplied links.
+        self.include_metadata_crossrefs=False
         self.calls=[]
         self.puts=[]
         self.error_fid=None
@@ -51,13 +54,15 @@ class API:
             seriesids=[
                 {"SeriesID":{"AniDB":aid},"EpisodeIDs":[{"AniDB":eid}]}
                 for aid,eid in self.xrefs.get(fid,[])]
-            return {
+            response={
                 "ID":fid,
                 "IsIgnored":fid in self.ignored and fid not in self.ignored_not_visible,
                 "SeriesIDs":seriesids,
-                "MetadataCrossReferences":self.metadata_refs.get(fid,[]),
                 "Locations":[{"RelativePath":self.paths[fid]}],
             }
+            if self.include_metadata_crossrefs or fid in self.metadata_refs:
+                response["MetadataCrossReferences"]=self.metadata_refs.get(fid,[])
+            return response
         raise AssertionError(f"Unexpected call {method} {path}")
 
     @staticmethod
@@ -166,8 +171,8 @@ class IgnoreTests(unittest.TestCase):
         self.assertNotIn(2997,api.puts)
         self.assertEqual(result["mode"],"apply_pending_verification")
 
-    def test_missing_ignored_attribute_or_xref_list_refuses_all(self):
-        for key in ("IsIgnored","SeriesIDs","MetadataCrossReferences"):
+    def test_missing_required_ignored_attribute_or_anidb_xrefs_refuses_all(self):
+        for key in ("IsIgnored","SeriesIDs"):
             api=API()
             old_request=api.request
             def patch(method,path,params=None,body=None):
@@ -179,6 +184,39 @@ class IgnoreTests(unittest.TestCase):
             with self.subTest(key=key),self.assertRaises(ValueError):
                 apply_batch(api,fresh(),lambda _:None)
             self.assertEqual(api.puts,[])
+
+    def test_shoko_533_missing_metadata_field_is_normal(self):
+        api=API()
+        # The real v5.3.3 File.cs does not define this field at all.
+        response=api.request("GET","/File/2994",{"include":"XRefs"})
+        self.assertNotIn("MetadataCrossReferences",response)
+        report=apply_batch(api,fresh(),lambda _:None,verify_wait=0)
+        self.assertEqual(report["mode"],"apply")
+        self.assertEqual(report["counts"],{"ignored_verified":4})
+        self.assertEqual(report["submitted"],4)
+        self.assertEqual(report["verified"],4)
+        self.assertEqual(report["unrecognized_after"],0)
+
+    def test_newer_version_explicit_empty_metadata_field_works(self):
+        api=API()
+        api.include_metadata_crossrefs=True
+        report=apply_batch(api,fresh(),lambda _:None,verify_wait=0)
+        self.assertEqual(report["mode"],"apply")
+        self.assertEqual(report["submitted"],4)
+
+    def test_newer_version_malformed_metadata_field_fails_before_writes(self):
+        api=API()
+        api.include_metadata_crossrefs=True
+        orig=api.request
+        def malformed(method,path,params=None,body=None):
+            response=orig(method,path,params,body)
+            if path=="/File/3020" and method=="GET":
+                response["MetadataCrossReferences"]=None
+            return response
+        api.request=malformed
+        with self.assertRaisesRegex(ValueError,"invalid MetadataCrossReferences"):
+            apply_batch(api,fresh(),lambda _:None,verify_wait=0)
+        self.assertEqual(api.puts,[])
 
     def test_corrupt_journal_is_not_used(self):
         with tempfile.TemporaryDirectory() as tmp:
