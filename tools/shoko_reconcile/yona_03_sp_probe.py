@@ -47,6 +47,14 @@ def shoko_identity(api):
     if RELATIVE_PATH not in paths:
         raise ValueError("Shoko no longer associates File 2486 with exact reviewed path")
     result["file_path_verified"] = True
+    # Shoko already has this file indexed. Its size and duration, when
+    # supplied, remain useful even if the command-line user cannot stat or
+    # read the bind-mounted file. Keep Shoko's raw duration value: the API
+    # representation is not sufficient to establish seconds vs ticks.
+    if type(file.get("Size")) is int:
+        result["shoko_indexed_size_bytes"] = file["Size"]
+    if isinstance(file.get("Duration"), (str, int, float)):
+        result["shoko_indexed_duration_raw"] = file["Duration"]
     work = api.local_series(AID)
     ids = (work or {}).get("IDs") or {}
     if int(ids.get("ID") or 0) != SHOKO_SID or int(ids.get("AniDB") or 0) != AID:
@@ -73,13 +81,49 @@ def shoko_identity(api):
 
 def probe_media(root: Path, *, ffprobe="ffprobe", run=subprocess.run):
     """Read one exact file (no decode/thumbnail writes), with command timeout."""
-    root = root.resolve()
+    # The Shoko service may have access to the same mount via another UID,
+    # group, ACL or mount namespace. Path.is_file() raises PermissionError on
+    # Python 3.13 when traversal/stat fails. Do not crash or rewrite ACLs.
+    def inaccessible(stage, exc):
+        return {
+            "status": "media_access_denied" if isinstance(exc, PermissionError)
+                      else "media_path_os_error",
+            "stage": stage,
+            "expected_path": str(path),
+            "errno": exc.errno,
+            "error": type(exc).__name__,
+            "diagnostic": (
+                "The current probe process cannot stat/traverse this path. "
+                "Shoko indexing does not prove this process can access it. "
+                "Check 'id' and 'namei -l' for the exact file and each parent; "
+                "do not recursively chmod/chown the torrent library."),
+        }
+
+    try:
+        root = root.resolve()
+    except OSError as exc:
+        path = root / RELATIVE_PATH
+        return inaccessible("resolve_media_root", exc)
     path = root / RELATIVE_PATH
-    if not root.is_dir() or not path.is_file():
-        return {"status": "media_path_unavailable",
-                "expected_path": str(path),
-                "note": "Shoko may know a path even when the LXC mount is unavailable."}
-    if not path.resolve().is_relative_to(root):
+    try:
+        if not root.is_dir():
+            return {"status": "media_path_unavailable",
+                    "expected_path": str(path),
+                    "note": "The requested LXC media root is not a directory."}
+    except OSError as exc:
+        return inaccessible("stat_media_root", exc)
+    try:
+        if not path.is_file():
+            return {"status": "media_path_unavailable",
+                    "expected_path": str(path),
+                    "note": "Shoko may know a path even when the LXC mount is unavailable."}
+    except OSError as exc:
+        return inaccessible("stat_media_file", exc)
+    try:
+        resolved_path = path.resolve()
+    except OSError as exc:
+        return inaccessible("resolve_media_file", exc)
+    if not resolved_path.is_relative_to(root):
         raise ValueError("Symlink points outside requested read-only media root")
     binary = shutil.which(ffprobe) if ffprobe == "ffprobe" else ffprobe
     if binary is None:
@@ -98,6 +142,8 @@ def probe_media(root: Path, *, ffprobe="ffprobe", run=subprocess.run):
     except subprocess.TimeoutExpired:
         return {"status": "ffprobe_timeout",
                 "expected_path": str(path)}
+    except OSError as exc:
+        return inaccessible("execute_ffprobe", exc)
     if proc.returncode != 0:
         return {"status": "ffprobe_error",
                 "error": proc.stderr[:400] or "Unknown ffprobe error"}
