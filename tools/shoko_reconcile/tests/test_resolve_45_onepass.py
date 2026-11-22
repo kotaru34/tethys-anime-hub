@@ -31,12 +31,17 @@ class FakeShoko:
         self.extra = {}
         self.total_override = None
         self.linked = []
+        self.unrecognized_reads = 0
+        self.auto_recognize_before_second_read = set()
 
     def request(self, method, path, params=None, body=None):
         self.calls.append((method, path))
         if method != "GET" or path != "/File" or body is not None:
             raise AssertionError("Global read must be one GET /File Unrecognized")
         self.assert_params(params)
+        self.unrecognized_reads += 1
+        if self.unrecognized_reads == 2:
+            self.active -= self.auto_recognize_before_second_read
         rows = [
             {"ID": fid,
              "Locations": [{"RelativePath": (
@@ -147,6 +152,24 @@ class OnePassResolverTests(unittest.TestCase):
                           3429, 3439, 3434, 3431} & {r[0] for r in api.linked})
         self.assertFalse({3209, 3206, 3020, 3005, 3007, 3016, 3017}
                          & {r[0] for r in api.linked})
+
+    def test_automatic_recognition_during_metadata_wait_is_not_overwritten(self):
+        api = FakeShoko()
+        api.auto_recognize_before_second_read = {3423, 3426, 2955}
+        memory = state()
+        report = prepare(api, memory, apply=True, persist=lambda _: None,
+                         sleep=lambda _: None)
+        self.assertEqual(api.unrecognized_reads, 2)
+        self.assertEqual(report["xref_requests_submitted"], 18)
+        self.assertEqual(report["rows"][3423]["status"],
+                         "already_not_unrecognized_after_metadata")
+        self.assertEqual(report["rows"][3426]["status"],
+                         "already_not_unrecognized_after_metadata")
+        self.assertEqual(report["rows"][2955]["status"],
+                         "already_not_unrecognized_after_metadata")
+        self.assertNotIn("3423", memory["xref_attempts"])
+        self.assertNotIn("3426", memory["xref_attempts"])
+        self.assertNotIn("2955", memory["xref_attempts"])
 
     def test_rerun_no_second_post_when_shoko_queue_is_delayed(self):
         api = FakeShoko()
