@@ -29,8 +29,6 @@ from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import time
 
 from shoko_reconcile import ShokoAPI
@@ -172,7 +170,23 @@ def inspection(api,state):
         elif refs == [(AID,eid)]:
             row["status"] = "already_correct"
         elif str(fid) in state["attempts"]:
-            row["status"] = "previously_attempted_inspect_manually"
+            # Request already dispatched on a previous run; a missing or old
+            # XRef may simply be eventual consistency. NEVER send twice.
+            # An unexpected third-party link is a real conflict and blocks
+            # every other write in this invocation.
+            attempted = state["attempts"][str(fid)]
+            if (not isinstance(attempted, dict) or
+                    attempted.get("new") != eid or
+                    attempted.get("old") != old_eid):
+                row.update(status="blocked",
+                           reason="journal_target_mismatch")
+            elif ((old_eid is None and refs == [] and fid in unknown) or
+                  (old_eid is not None and refs == [(AID,old_eid)])):
+                row["status"] = "previous_attempt_pending_no_duplicate"
+                row["reason"] = "Earlier XRef POST may still be processing; no resend"
+            else:
+                row.update(status="blocked",
+                           reason="previous_attempt_unexpected_actual_xref")
         elif old_eid is not None and refs == [(AID,old_eid)] and fid not in unknown:
             row.update(status="ready_correction",previous_anidb_episode_id=old_eid)
         elif old_eid is None and refs == [] and fid in unknown:
@@ -196,7 +210,36 @@ def inspection(api,state):
     return rows,other
 
 
-def apply_safe(api,state,persist):
+def wait_for_expected_xref(api, fid, target_eid, previous_eid, *,
+                           sleep=time.sleep, monotonic=time.monotonic,
+                           max_wait=15, interval=1):
+    """Bounded eventual-consistency check after POST; never repeat the POST.
+
+    Only accept exactly the intended AniDB episode as proof. The previous
+    link (for a correction) or no link yet (for a new assignment) is a
+    transient, not permission to retry. A conflicting XRef fails closed.
+    """
+    expected = [(AID,target_eid)]
+    old = [(AID,previous_eid)] if previous_eid is not None else []
+    deadline = monotonic() + max_wait
+    last = None
+    while True:
+        try:
+            last = current_refs(get_file(api,fid))
+        except Exception as exc:
+            last = f"{type(exc).__name__}: {str(exc)[:180]}"
+        if last == expected:
+            return "verified", last
+        if isinstance(last, list) and last != old:
+            return "conflicting", last
+        if monotonic() >= deadline:
+            return "pending", last
+        sleep(min(interval, max(0,deadline-monotonic())))
+
+
+def apply_safe(api,state,persist, *,
+               sleep=time.sleep, monotonic=time.monotonic,
+               verify_wait=15):
     rows,other=inspection(api,state)
     report={"mode":"apply", "rows":rows,"other_unresolved":other,
             "submitted":0,"verified_after_write":0}
@@ -204,6 +247,28 @@ def apply_safe(api,state,persist):
     if any(row["status"] == "blocked" for row in rows.values()):
         report["mode"]="apply_aborted_unexpected_existing_xrefs"
         return finalize(report)
+    # A bounded read-only recovery check allows an already-dispatched POST
+    # to become visible without deleting the journal or issuing another POST.
+    for _,fid,_,eid,_,_,old_eid in ENDINGS:
+        row = rows[fid]
+        if row["status"] != "previous_attempt_pending_no_duplicate":
+            continue
+        result, observed = wait_for_expected_xref(
+            api, fid, eid, old_eid, sleep=sleep, monotonic=monotonic,
+            max_wait=verify_wait)
+        row["last_recovery_observation"] = observed
+        if result == "verified":
+            row["status"] = "prior_attempt_now_verified"
+            state["attempts"][str(fid)]["outcome"] = "verified_on_resume"
+            persist(state)
+            report["verified_after_write"] += 1
+        elif result == "conflicting":
+            row.update(status="blocked",
+                       reason="prior_attempt_conflicting_live_xref")
+            report["mode"] = "apply_aborted_unexpected_existing_xrefs"
+            return finalize(report)
+        else:
+            row["status"] = "prior_attempt_still_unverified_no_retry"
     for _,fid,num,eid,_,_,old_eid in ENDINGS:
         row=rows[fid]
         if row["status"] not in ("ready_new_link","ready_correction"):
@@ -234,22 +299,31 @@ def apply_safe(api,state,persist):
             report["mode"]="apply_interrupted_uncertain"
             break
         report["submitted"] += 1
-        try:
-            seen = current_refs(get_file(api,fid))
-        except Exception as exc:
-            seen = []
-            row["verification_error"]=f"{type(exc).__name__}: {str(exc)[:180]}"
-        if seen != [(AID,eid)]:
-            state["attempts"][str(fid)]["outcome"]="submitted_unverified"
+        result, seen = wait_for_expected_xref(
+            api, fid, eid, old_eid, sleep=sleep, monotonic=monotonic,
+            max_wait=verify_wait)
+        if result != "verified":
+            state["attempts"][str(fid)]["outcome"] = (
+                "submitted_unverified" if result == "pending" else
+                "submitted_conflicting_xref")
             persist(state)
-            row["status"]="submitted_unverified"
-            report["mode"]="apply_interrupted_unverified"
+            row["status"] = (
+                "submitted_unverified" if result == "pending" else
+                "submitted_conflicting_xref")
+            row["last_observed_xrefs"] = seen
+            report["mode"] = (
+                "apply_interrupted_unverified" if result == "pending" else
+                "apply_interrupted_unexpected_xrefs")
             break
         state["attempts"][str(fid)]["outcome"]="verified"
         persist(state)
         row["status"]="xref_verified_corrected" if old_eid is not None \
                       else "xref_verified_new"
         report["verified_after_write"]+=1
+    if (report["mode"] == "apply" and any(
+        row["status"] == "prior_attempt_still_unverified_no_retry"
+        for row in rows.values())):
+        report["mode"] = "apply_completed_other_links_pending_prior_confirmation"
     return finalize(report)
 
 
@@ -260,6 +334,7 @@ def finalize(report):
         f for f,row in report["rows"].items()
         if row["status"] not in ("already_correct",
                                 "already_correct_during_run",
+                                "prior_attempt_now_verified",
                                 "xref_verified_corrected","xref_verified_new")
     ]
     report["scope"]={
@@ -280,9 +355,13 @@ def main(argv=None):
                    default=Path("/root/shoko-final10-correction.json"))
     p.add_argument("--apply",action="store_true")
     p.add_argument("--confirm",default="")
+    p.add_argument("--verify-wait",type=int,default=15,
+                   help="Bounded seconds to observe a submitted XRef (0..60)")
     a=p.parse_args(argv)
     if a.apply and a.confirm!="CORRECT_DAL_NCED_XREFS_9":
         p.error("Use --confirm CORRECT_DAL_NCED_XREFS_9")
+    if a.verify_wait < 0 or a.verify_wait > 60:
+        p.error("--verify-wait must be within 0..60")
     key=os.getenv("SHOKO_API_KEY")
     if not key:p.error("Set SHOKO_API_KEY")
     context=exclusive_state_lock(a.state) if a.apply else nullcontext()
@@ -292,7 +371,8 @@ def main(argv=None):
             api=ShokoAPI(a.url,key)
             if a.apply:
                 report=apply_safe(api,state,
-                                  lambda s:atomic_json(a.state,s))
+                                  lambda s:atomic_json(a.state,s),
+                                  verify_wait=a.verify_wait)
             else:
                 rows,other=inspection(api,state)
                 report=finalize({"mode":"dry_run", "rows":rows,
@@ -311,6 +391,7 @@ def main(argv=None):
         "apply_interrupted_unexpected_xrefs",
         "apply_interrupted_uncertain",
         "apply_interrupted_unverified",
+        "apply_completed_other_links_pending_prior_confirmation",
     ))
 
 if __name__=="__main__":

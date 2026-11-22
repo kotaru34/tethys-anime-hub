@@ -47,3 +47,27 @@ Shoko source authority: [ShokoServer FileController.cs](https://github.com/Shoko
 - OVA `3206`: High School DxD OVA -04 plausibly AniDB 11844 E01 ID 167801, title *OVA*, same uncertainty.
 
 These six are reported but **never** automatically linked, ignored or deleted by this correction. To reduce remaining count below six, validate the two DxD OVA video contents and investigate PV IDs; it is not acceptable to force PV files into unrelated opening/endings or silently ignore preserved torrent content.
+
+## Resuming the original unverified NCED-02 request (File ID 3430)
+
+The operator's first CT2601 run returned `apply_interrupted_unverified` with `submitted: 1`, `verified_after_write: 0`, and file **3430** marked `submitted_unverified`. This is an **unknown acknowledgment state**, not proof of a failed XRef. Its previous attempt is recorded in `STATE`; **never delete or edit the journal**.
+
+After pulling this follow-up patch, **rerun the same one-shot command** with a *new* report name to preserve the earlier evidence:
+
+```bash
+cd /opt/tethys-anime-hub
+git pull --ff-only
+cd tools/shoko_reconcile
+python3 fix_dal_endings_final10.py \
+  --apply --confirm CORRECT_DAL_NCED_XREFS_9 \
+  --report /root/shoko-final10-resume.json
+```
+
+The script re-reads the live **`GET /File/3430?include=XRefs`** and may briefly poll for consistency. If the first POST became visible, it is treated as already correct and is **not resubmitted**. If it has still not appeared, the prior request remains pending/uncertain and is **not resubmitted**; all *other six* independently verified new/corrective links may proceed safely. If the live 3430 XRef is unexpected, the run aborts before any new writes. Every new XRef POST gets a bounded (default 15-second) read-after-write verification window, with a maximum of 60 seconds configurable via `--verify-wait`.
+
+Possible outcomes:
+- `mode: apply`, `submitted: 6`: 3430 was already correctly linked; all remaining six finished and were reverified.
+- `mode: apply_completed_other_links_pending_prior_confirmation`, `submitted: 6`: six finished; 3430 still needs **verification**, and the previous POST was not repeated.
+- `mode: apply_interrupted_unverified`: a different newly submitted XRef is not yet visible within the bounded verification window; its attempt is journaled, and rerunning is safe without repeated network writes.
+
+**Do not run `curl POST` or manually link 3430 until the pending state has been resolved**. This patch makes no filesystem changes, schedules no refresh and touches no other media.
