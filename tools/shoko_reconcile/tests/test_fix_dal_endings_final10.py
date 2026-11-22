@@ -64,7 +64,7 @@ class FakeShoko:
                 data["Locations"][0]["RelativePath"]="WRONG/file.mkv"
             if self.malform_xrefs and fid==3432:
                 data.pop("SeriesIDs",None)
-            if fid==self.return_unverified:
+            if fid==self.return_unverified and any(post[0]==fid for post in self.posts):
                 data["SeriesIDs"]=[]
             return data
         raise AssertionError(f"Unexpected endpoint {path}")
