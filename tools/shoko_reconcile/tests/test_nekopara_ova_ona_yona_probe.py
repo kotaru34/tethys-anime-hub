@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from nekopara_ova_ona_bootstrap import ALLOWED_AIDS, WORKS, apply, load_state, preflight
@@ -193,6 +193,55 @@ class YonaProbeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             result = probe_media(Path(td))
             self.assertEqual(result["status"], "media_path_unavailable")
+
+    def test_permission_denied_stat_is_structured_not_traceback(self):
+        # Regression: Python 3.13 raises EACCES from Path.is_file().
+        with tempfile.TemporaryDirectory() as td, patch(
+                "pathlib.Path.is_file",
+                side_effect=PermissionError(13, "Permission denied")):
+            result = probe_media(Path(td))
+        self.assertEqual(result["status"], "media_access_denied")
+        self.assertEqual(result["stage"], "stat_media_file")
+        self.assertEqual(result["errno"], 13)
+        self.assertEqual(result["error"], "PermissionError")
+        self.assertTrue(result["expected_path"].endswith(RELATIVE_PATH))
+        self.assertIn("namei -l", result["diagnostic"])
+
+    def test_permission_denied_ffprobe_launch_is_structured(self):
+        with tempfile.TemporaryDirectory() as td:
+            movie = Path(td) / RELATIVE_PATH
+            movie.parent.mkdir(parents=True)
+            movie.write_bytes(b"not a real MKV")
+            def denied_run(cmd, **kwargs):
+                raise PermissionError(13, "Permission denied")
+            result = probe_media(Path(td), ffprobe="/usr/bin/ffprobe",
+                                 run=denied_run)
+        self.assertEqual(result["status"], "media_access_denied")
+        self.assertEqual(result["stage"], "execute_ffprobe")
+        self.assertEqual(result["errno"], 13)
+
+    def test_inspect_still_returns_episode_identities_when_media_denied(self):
+        api = FakeYona()
+        with tempfile.TemporaryDirectory() as td, patch(
+                "pathlib.Path.is_file",
+                side_effect=PermissionError(13, "Permission denied")):
+            report = inspect(api, Path(td))
+        self.assertEqual(report["mode"], "read_only_yona_combined_ova_probe")
+        self.assertEqual(report["media"]["status"], "media_access_denied")
+        self.assertEqual(len(report["shoko_identity"]["verified_episode_candidates"]), 2)
+        self.assertEqual(report["scope"]["xref_writes"], 0)
+        self.assertEqual(len(api.calls), 3)
+
+    def test_shoko_record_duration_is_raw_not_guessed_seconds(self):
+        api = FakeYona()
+        original = api.request
+        def with_shoko_metadata(*args, **kwargs):
+            value = original(*args, **kwargs)
+            return {**value, "Duration": "1230000000", "Size": 8000000}
+        api.request = with_shoko_metadata
+        report = shoko_identity(api)
+        self.assertEqual(report["shoko_indexed_duration_raw"], "1230000000")
+        self.assertEqual(report["shoko_indexed_size_bytes"], 8000000)
 
     def test_ffprobe_headers_and_chapters_no_content_claim(self):
         with tempfile.TemporaryDirectory() as td:
