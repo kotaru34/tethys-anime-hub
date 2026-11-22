@@ -66,8 +66,10 @@ class FakeShoko:
                 data["Locations"][0]["RelativePath"]="WRONG/file.mkv"
             if self.malform_xrefs and fid==3432:
                 data.pop("SeriesIDs",None)
-            if fid==self.return_unverified and any(post[0]==fid for post in self.posts):
-                data["SeriesIDs"]=[]
+            if fid==self.return_unverified and fid in self.post_previous_refs:
+                # Emulate stale but otherwise valid XRefs during async Shoko
+                # processing. For corrected files the old link remains visible.
+                data["SeriesIDs"]=self.post_previous_refs[fid]
             if (fid in self.delayed_visibility_reads and
                 self.delayed_visibility_reads[fid] > 0 and
                 fid in self.post_previous_refs):
