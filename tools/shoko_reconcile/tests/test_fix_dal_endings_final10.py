@@ -227,7 +227,7 @@ class Final10Tests(unittest.TestCase):
         result=apply_safe(api,st,lambda _:None)
         self.assertNotIn(3432,[row[0] for row in api.posts])
         self.assertEqual(result["rows"][3432]["status"],
-                         "previously_attempted_inspect_manually")
+                         "prior_attempt_still_unverified_no_retry")
 
     def test_unverified_post_aborts_and_does_not_repeat(self):
         api=FakeShoko()
