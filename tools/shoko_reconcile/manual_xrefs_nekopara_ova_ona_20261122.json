@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "source": "CT2601 nekopara-works-episodes.json (2026-11-22) and shoko-current-unknown-48.json (2026-11-16). Exact live File ID/path/work/Episode metadata checked by manual_review_batch.py.",
+  "policy": "Only two individually reviewed standalone Nekopara OVA/ONA titles. Excludes TV 14570, trailers/credits, and combined Yona E03+S01. Dry-run default; no changes to /Anime.",
+  "entries": [
+    {
+      "file_id": 2909,
+      "path": "NEKOPARA_[OVA]_[AniLibria_Tv]_[WEB-Rip_1080p].mkv",
+      "anidb_id": 12622,
+      "shoko_series_id": 274,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 193701,
+      "title": "OVA"
+    },
+    {
+      "file_id": 2850,
+      "path": "Nekopara_Koneko_no_Hi_no_Yakusoku_[ONA]_[AniLibria_TV]_[WEBRip_1080p].mkv",
+      "anidb_id": 14206,
+      "shoko_series_id": 279,
+      "type": "Episode",
+      "episode": 1,
+      "anidb_episode_id": 203599,
+      "title": "Web"
+    }
+  ]
+}
