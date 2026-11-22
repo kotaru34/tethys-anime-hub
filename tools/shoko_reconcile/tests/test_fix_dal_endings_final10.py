@@ -29,6 +29,8 @@ class FakeShoko:
         self.override_credit=None
         self.malform_xrefs=False
         self.unrecognized=set()
+        self.delayed_visibility_reads={}
+        self.post_previous_refs={}
         self.credits={1:(148985,"Opening")}
         for ordinal,fid,num,eid,title,mib,old_id in ENDINGS:
             self.credits[num]=(eid,title)
@@ -66,6 +68,11 @@ class FakeShoko:
                 data.pop("SeriesIDs",None)
             if fid==self.return_unverified and any(post[0]==fid for post in self.posts):
                 data["SeriesIDs"]=[]
+            if (fid in self.delayed_visibility_reads and
+                self.delayed_visibility_reads[fid] > 0 and
+                fid in self.post_previous_refs):
+                self.delayed_visibility_reads[fid] -= 1
+                data["SeriesIDs"]=self.post_previous_refs[fid]
             return data
         raise AssertionError(f"Unexpected endpoint {path}")
 
@@ -93,6 +100,8 @@ class FakeShoko:
             raise TimeoutError("uncertain network response")
         assert sid==SID and kind=="Credits"
         eid,_=self.credits[episode]
+        self.post_previous_refs[fid]=json.loads(
+            json.dumps(self.files[fid]["SeriesIDs"]))
         self.files[fid]["SeriesIDs"]=[{
             "SeriesID":{"ID":SID,"AniDB":AID},
             "EpisodeIDs":[{"AniDB":eid}]}]
@@ -224,10 +233,83 @@ class Final10Tests(unittest.TestCase):
         api=FakeShoko()
         api.return_unverified=3432
         st=fresh_state()
-        result=apply_safe(api,st,lambda _:None)
+        result=apply_safe(api,st,lambda _:None,verify_wait=0)
         self.assertEqual(result["mode"],"apply_interrupted_unverified")
         self.assertEqual(st["attempts"]["3432"]["outcome"],"submitted_unverified")
         self.assertEqual(result["verified_after_write"],1)
+
+    def test_prior_submitted_unverified_resumes_other_six_without_repeat(self):
+        api=FakeShoko()
+        state=fresh_state()
+        state["attempts"]["3430"]={
+            "at":123,"outcome":"submitted_unverified",
+            "old":None,"new":149639}
+        report=apply_safe(api,state,lambda _:None,verify_wait=0)
+        self.assertEqual(report["mode"],
+                         "apply_completed_other_links_pending_prior_confirmation")
+        self.assertEqual(report["submitted"],6)
+        self.assertEqual(report["verified_after_write"],6)
+        self.assertEqual(report["rows"][3430]["status"],
+                         "prior_attempt_still_unverified_no_retry")
+        self.assertNotIn(3430,[post[0] for post in api.posts])
+        self.assertEqual({post[0] for post in api.posts},
+                         {3432,3437,3438,3429,3439,3434})
+
+    def test_prior_submitted_already_visible_continues_six(self):
+        api=FakeShoko()
+        api.link(3430,SID,3,"Credits")
+        api.posts.clear()
+        state=fresh_state()
+        state["attempts"]["3430"]={
+            "at":123,"outcome":"submitted_unverified",
+            "old":None,"new":149639}
+        report=apply_safe(api,state,lambda _:None,verify_wait=0)
+        self.assertEqual(report["mode"],"apply")
+        self.assertEqual(report["rows"][3430]["status"],"already_correct")
+        self.assertEqual(report["submitted"],6)
+        self.assertNotIn(3430,[post[0] for post in api.posts])
+
+    def test_prior_submitted_conflicting_episode_blocks_all(self):
+        api=FakeShoko()
+        api.files[3430]["SeriesIDs"]=[{
+            "SeriesID":{"ID":SID,"AniDB":AID},
+            "EpisodeIDs":[{"AniDB":987654}]}]
+        api.unrecognized.discard(3430)
+        state=fresh_state()
+        state["attempts"]["3430"]={
+            "at":123,"outcome":"submitted_unverified",
+            "old":None,"new":149639}
+        report=apply_safe(api,state,lambda _:None,verify_wait=0)
+        self.assertEqual(report["mode"],
+                         "apply_aborted_unexpected_existing_xrefs")
+        self.assertEqual(report["rows"][3430]["status"],"blocked")
+        self.assertEqual(report["submitted"],0)
+        self.assertEqual(api.posts,[])
+
+    def test_prior_journal_target_mismatch_blocks_all(self):
+        api=FakeShoko()
+        state=fresh_state()
+        state["attempts"]["3430"]={
+            "at":123,"outcome":"submitted_unverified",
+            "old":None,"new":123456}
+        report=apply_safe(api,state,lambda _:None,verify_wait=0)
+        self.assertEqual(report["mode"],
+                         "apply_aborted_unexpected_existing_xrefs")
+        self.assertEqual(api.posts,[])
+
+    def test_delayed_xref_becomes_visible_with_bounded_poll(self):
+        api=FakeShoko()
+        api.delayed_visibility_reads[3430]=2
+        now=[0.0]
+        def fake_clock(): return now[0]
+        def fake_sleep(n): now[0]+=n
+        report=apply_safe(api,fresh_state(),lambda _:None,
+                          sleep=fake_sleep,monotonic=fake_clock,verify_wait=5)
+        self.assertEqual(report["mode"],"apply")
+        self.assertEqual(report["submitted"],7)
+        self.assertEqual(report["verified_after_write"],7)
+        self.assertEqual(now[0],2.0)
+        self.assertEqual([post[0] for post in api.posts].count(3430),1)
 
     def test_journal_rejects_foreign_aniDB_work(self):
         with tempfile.TemporaryDirectory() as tmp:
