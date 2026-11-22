@@ -57,9 +57,17 @@ def get_file(api, fid):
         raise ValueError(f"Exact RelativePath changed for {fid}; no writes")
     if type(data.get("IsIgnored")) is not bool:
         raise ValueError(f"Missing IsIgnored flag for {fid}")
-    if (not isinstance(data.get("SeriesIDs"),list) or
-        not isinstance(data.get("MetadataCrossReferences"),list)):
-        raise ValueError(f"File {fid}: missing cross-references from include=XRefs")
+    # Shoko 5.3.3's File model has SeriesIDs but NO
+    # MetadataCrossReferences property. This optional field was introduced
+    # later for non-AniDB release links. In 5.3.3, its absence is normal.
+    # Still fail closed if required AniDB XRefs are absent or either
+    # supplied field is malformed (not a list).
+    if not isinstance(data.get("SeriesIDs"), list):
+        raise ValueError(f"File {fid}: missing AniDB SeriesIDs from include=XRefs")
+    if ("MetadataCrossReferences" in data and
+            not isinstance(data["MetadataCrossReferences"], list)):
+        raise ValueError(f"File {fid}: invalid MetadataCrossReferences payload")
+    data.setdefault("MetadataCrossReferences", [])
     return data
 
 
