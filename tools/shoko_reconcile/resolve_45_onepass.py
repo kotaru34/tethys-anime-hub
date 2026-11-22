@@ -337,6 +337,19 @@ def prepare(api, state, *, apply=False, max_wait=120, interval=5,
         else:
             row["status"] = "ready"
             to_link.append(fid)
+    # Shoko's ordinary reconciler may independently recognize files while
+    # metadata is loading. Refresh ONE bounded unrecognized page just before
+    # any XRef POST, and never override an automatic match in that window.
+    # This preserves the older manual_review_batch "not_unrecognized_skip"
+    # behavior even when the server's metadata job finishes mid-operation.
+    second_unrecognized_read = False
+    if apply and to_link:
+        current_unknown, _ = snapshot(api, expected)
+        second_unrecognized_read = True
+        for fid in to_link:
+            if fid not in current_unknown:
+                rows[fid]["status"] = "already_not_unrecognized_after_metadata"
+        to_link = [fid for fid in to_link if fid in current_unknown]
     # The one-shot can safely complete all metadata-independent links
     # even when a different work is still pending in Shoko's internal queue.
     if apply:
@@ -364,7 +377,7 @@ def prepare(api, state, *, apply=False, max_wait=120, interval=5,
             report["xref_requests_submitted"] += 1
     report["counts"] = dict(Counter(row["status"] for row in rows.values()))
     report["scope"] = {
-        "unrecognized_file_page_gets": 1,
+        "unrecognized_file_page_gets": 1 + int(second_unrecognized_read),
         "known_work_ids_queried": aids,
         "targeted_episode_inventories": len(index),
         "max_metadata_posts": len(CREATABLE_AIDS),
