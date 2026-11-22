@@ -224,7 +224,7 @@ class Final10Tests(unittest.TestCase):
                          "dispatch_uncertain")
         api.bad_link=None
         api.posts.clear()
-        result=apply_safe(api,st,lambda _:None)
+        result=apply_safe(api,st,lambda _:None,verify_wait=0)
         self.assertNotIn(3432,[row[0] for row in api.posts])
         self.assertEqual(result["rows"][3432]["status"],
                          "prior_attempt_still_unverified_no_retry")
